@@ -41,10 +41,12 @@ for module in modules:
  if module.get('Main'):continue
  directory=pathlib.Path(module['Dir'])
  for p in directory.glob('LICENSE*'):
-  shutil.copy2(p,licenses/(module['Path'].replace('/','_')+'-'+p.name))
+  target=licenses/(module['Path'].replace('/','_')+'-'+p.name)
+  if p.is_dir(): shutil.copytree(p,target)
+  else: shutil.copy2(p,target)
 manifest=json.loads((stage/'release.json').read_text())
 import hashlib
-manifest['files'].update({p.relative_to(stage).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in licenses.iterdir()})
+manifest['files'].update({p.relative_to(stage).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in licenses.rglob('*') if p.is_file()})
 (stage/'release.json').write_text(json.dumps(manifest,sort_keys=True,indent=2)+'\n')
 PYLIC
 version="v$(cat VERSION)"
