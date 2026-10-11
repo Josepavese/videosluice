@@ -7,7 +7,7 @@ Stato: **CHIUSA - COMPLETATA**. L'ammissione H26x live-only attesta il decoder r
 Evidenza: Replay test board commit636e5f2: rev24 completata, 60 access unit a 25 fps; negative MJPG/portable nei test.
 
 Riesame del repository e delle prove registrate, non nuova verifica live.
-[Registro della cernita e limiti residui](../../../../improvements/TRIAGE_2026-09-06.md).
+Registro della cernita e limiti residui (operational history retained by the application owner).
 Le sezioni seguenti sono storico cronologico: stati e istruzioni di rilascio
 precedenti non descrivono lo stato operativo corrente.
 

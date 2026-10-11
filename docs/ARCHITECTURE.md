@@ -67,7 +67,7 @@ publication primitive is shared by media, status and control listeners, so an
 old generation cannot remove or silently replace a successor. Filesystem access
 protects the local transport; user authentication, CSRF, localized labels and
 role policy belong to the embedding application adapter.
-No WebRTC, recorder, tracker or Nemesi type crosses into this boundary.
+No WebRTC, recorder, tracker or application type crosses into this boundary.
 
 The central catalog may evolve independently from the operator plan. At daemon
 startup only, the Store may reconcile a current-schema plan to a trusted newer

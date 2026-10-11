@@ -7,7 +7,7 @@ Stato: **CHIUSA - COMPLETATA**. La riconciliazione conserva le scelte ancora val
 Evidenza: Commit 281d58b, transizione reale test board v6->v7 rev23 e regressioni Store correnti.
 
 Riesame del repository e delle prove registrate, non nuova verifica live.
-[Registro della cernita e limiti residui](../../../../improvements/TRIAGE_2026-09-06.md).
+Registro della cernita e limiti residui (operational history retained by the application owner).
 Le sezioni seguenti sono storico cronologico: stati e istruzioni di rilascio
 precedenti non descrivono lo stato operativo corrente.
 

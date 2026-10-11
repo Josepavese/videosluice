@@ -23,7 +23,7 @@ func TestPlatformBoundary(t *testing.T) {
 			if path == "port.go" && name != "context" && name != "errors" {
 				t.Fatalf("platform dependency in port: %s", name)
 			}
-			if path != "port.go" && (strings.Contains(name, "framedomain") || strings.Contains(name, "frameaccess") || strings.Contains(strings.ToLower(name), "nemesi")) {
+			if path != "port.go" && (strings.Contains(name, "framedomain") || strings.Contains(name, "frameaccess")) {
 				t.Fatalf("domain dependency in provider: %s", name)
 			}
 		}
@@ -37,7 +37,7 @@ func TestNativePlatformBoundary(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(content)
-		for _, forbidden := range []string{"framedomain", "frameaccess", "nemesi", "person-registry", "rdkx5"} {
+		for _, forbidden := range []string{"framedomain", "frameaccess", "rdkx5"} {
 			if strings.Contains(strings.ToLower(text), forbidden) {
 				t.Fatalf("native peer crosses business/hardware boundary: %s %s", path, forbidden)
 			}

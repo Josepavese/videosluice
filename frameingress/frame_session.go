@@ -35,7 +35,7 @@ type FrameSession struct {
 
 // NewDeliverySession shares the same admitted/authenticated session lifecycle
 // as ROI, but serves only the fixed publication provided by the broker owner.
-// It never owns the publication or starts a Nemesi consumer process.
+// It never owns the publication or starts a consumer process.
 func NewDeliverySession(ctx context.Context, runtime *fd.Runtime, control *GrantControl, grant string, transport *fd.Resource[peer.Connection], publication *DeliveryPublication, maxWorkNS uint64) (*FrameSession, error) {
 	if publication == nil || publication.binding == nil || runtime == nil || runtime.Fence() != publication.fence {
 		return nil, peer.ErrInvalid

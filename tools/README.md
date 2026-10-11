@@ -1,6 +1,6 @@
 # Capture release guard recovery
 
-`recover_capture_guard.py` is a standalone administrative tool, not a Nemesi
+`recover_capture_guard.py` is a standalone administrative tool, not an application
 watchdog and not an automatic interpretation of an OS/service restart. It
 requires a **physically completed hardware power cycle**, confirmed by the
 operator, and a current boot different from the boot of the incident. Every

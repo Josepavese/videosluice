@@ -594,7 +594,7 @@ func fanoutRoutingCatalog(t *testing.T, sourceCount int) routing.Catalog {
 		sourceID := fmt.Sprintf("camera-%d", sourceIndex)
 		sources[sourceID] = productconfig.SourceConfig{
 			Identity: sourceID, Transport: "v4l2_uvc",
-			Device: filepath.Join("/dev/nemesi-video-sources", sourceID),
+			Device: filepath.Join("/dev/camera/by-id", sourceID),
 			Format: "mjpeg", Width: 1280, Height: 720, FPS: 20,
 			Acceleration: productconfig.AccelerationConfig{
 				EncodeProvider: "native_sp", DecodeProvider: "native_sp",

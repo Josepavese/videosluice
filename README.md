@@ -40,7 +40,7 @@ rm /tmp/videosluice-install.sh
 ~/.local/bin/videosluice --help
 ```
 
-For a pinned RDK X5 install, pass `--version v0.1.1 --variant rdkx5`. That variant
+For a pinned RDK X5 install, pass `--version v0.1.2 --variant rdkx5`. That variant
 requires the board's supported vendor media runtime. The installer does not
 change kernels, drivers, services or application configuration. macOS and
 Windows providers are not implemented.
@@ -75,14 +75,14 @@ Consume compressed packets through [the wire protocol](PROTOCOL.md), and analysi
 through the [Python SDK](sdk/python/) or public Go packages:
 
 ```sh
-go get github.com/Josepavese/videosluice@v0.1.1
+go get github.com/Josepavese/videosluice@v0.1.2
 ```
 
 The broker handles frame references and geometry. Detectors, models, identities,
 recording retention, signaling, user authorization and task supervision belong
 to your application. The current causal frame plane uses the authenticated SDK;
 the plain framed analysis socket is not qualified for native causal publication.
-See [the endpoint limitation](issues/2026-09-28-causal-analysis-packet-endpoint-connected-without-frames.md).
+See [the endpoint limitation](docs/QUALIFICATION.md).
 
 ## Hardware-aware, application-independent
 
@@ -106,10 +106,9 @@ directory with `scripts/build-release.sh`; never build into the source checkout.
 Release assets contain executables, native helpers, Go/Python SDK sources,
 examples, protocol docs, exact commit metadata and dependency notices.
 
-VideoSluice was extracted from Nemesi. Nemesi remains an embedding application:
-it translates its configuration and supervises the released broker. The product
-has no runtime import of Nemesi and does not own application AI workflows.
-See [extraction evidence](docs/EXTRACTION.md) and [naming research](docs/NAMING.md).
+Embedding applications translate their configuration into the product schema
+and supervise the released broker. Application AI workflows remain outside this
+product. See [qualification](docs/QUALIFICATION.md) and [naming research](docs/NAMING.md).
 
 MIT licensed. Native system/vendor libraries retain their own terms; see
 [third-party notices](THIRD_PARTY_NOTICES.md).

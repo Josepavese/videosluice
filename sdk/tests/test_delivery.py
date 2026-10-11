@@ -1,4 +1,4 @@
-"""Standalone SDK regressions; no Nemesi, camera or device grants required."""
+"""Standalone SDK regressions; no application, camera or device grants required."""
 import hashlib
 import struct
 import time

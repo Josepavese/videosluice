@@ -32,7 +32,7 @@ contiguo. Preservare input richiesto/pinned, artifact immutabili, origine esatta
 quote globali e lifetime FD. Non compattare slice esposte o introdurre nearest
 frame. Serve regressione causale, equivalente qualità e misura CPU/retention/
 disponibilità prima di qualsiasi nuovo runtime/deploy.
-Coordinare con [buffer immutabili/SHA](2026-09-09-immutable-frame-buffer-sha-cost.md),
+Coordinare con buffer immutabili/SHA (operational history retained by the application owner),
 senza portare queste evoluzioni laterali dentro la chiusura corrente.
 
 Prove private nel pack `broker-parity-20261005.drGkFjGa` sotto

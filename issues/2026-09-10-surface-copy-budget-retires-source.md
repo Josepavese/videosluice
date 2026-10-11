@@ -70,7 +70,7 @@ passed and the service restarted on the intended development root. Integrated
 diagnostic61samples/300.210546s FAILED: a different, partial source transfer
 timed out and Tracker restarted at temperature below72C. No verified-frame
 copy-budget drop was exercised in that failing epoch (drops0).
-See [native transfer stall](2026-09-10-native-surface-transfer-stalls-analysis.md).
+See native transfer stall (operational history retained by the application owner).
 The correction remains valid for its tested case but is not sufficient for
 integrated stability; do not declare this issue or the goal complete.
 

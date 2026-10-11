@@ -1,4 +1,4 @@
-"""Peer-check deadline regressions, independent of Nemesi and hardware."""
+"""Peer-check deadline regressions, independent of applications and hardware."""
 import hashlib
 import struct
 import unittest

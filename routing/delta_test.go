@@ -186,7 +186,7 @@ func TestDiffConfigsRejectsChangesOutsideRoutingAuthority(t *testing.T) {
 		"runtime": func(candidate *config.Config) { candidate.Runtime.StateDirectory = "/var/lib/other" },
 		"source": func(candidate *config.Config) {
 			source := candidate.Sources["camera_a"]
-			source.Device = "/dev/nemesi-video-sources/replaced"
+			source.Device = "/dev/camera/by-id/replaced"
 			candidate.Sources["camera_a"] = source
 		},
 		"stream": func(candidate *config.Config) { delete(candidate.Streams, "archive") },

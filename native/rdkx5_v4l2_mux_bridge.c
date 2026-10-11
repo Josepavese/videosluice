@@ -5157,7 +5157,7 @@ cleanup:
 		cleanup_confirmed ? "confirmed" : "unconfirmed", final_status,
 		cfg.tone_mapping_enabled ? "checked" : "disabled");
 	/* Every owned camera, codec and tone resource above has an explicit checked
-	 * release. Returning from main runs unrelated vendor atexit handlers; Cedro
+	 * release. Returning from main runs unrelated vendor atexit handlers; a field board
 	 * emitted the confirmed receipt and then remained alive until SIGKILL.
 	 * Flush this final receipt and exit without a second hidden SDK teardown. */
 	(void)fflush(stderr);

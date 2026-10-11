@@ -12,7 +12,7 @@ static void stop(int signal_number) { (void)signal_number; ++received; }
 
 /* A dynamic-loader/constructor stall precedes main's signal installation.
  * Model the cancellation window without SDK, disk pressure or timing sleeps.
- * This is a limitation proof, not a claim about which page stalled on Faro. */
+ * This is a limitation proof, not a claim about which page stalled on a test board. */
 __attribute__((constructor)) static void cancel_before_main(void) {
     const char *early = getenv("VIDEO_BROKER_SIGNAL_TEST_BEFORE_MAIN");
     if (early != NULL && strcmp(early, "1") == 0) {

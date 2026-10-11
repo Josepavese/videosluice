@@ -427,6 +427,6 @@ GST_PLUGIN_DEFINE(
 	"Video Broker NV12 spatial tone mapper",
 	plugin_init,
 	"1.0.0",
-	"Proprietary",
+	"MIT/X11",
 	"video-broker",
-	"https://halfpocket.net")
+	"https://github.com/Josepavese/videosluice")

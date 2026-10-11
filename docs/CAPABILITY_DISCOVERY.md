@@ -1,6 +1,6 @@
 # Capability discovery
 
-Discovery belongs entirely to `video-broker`. It has no input for a Nemesi
+Discovery belongs entirely to `video-broker`. It has no input for an application
 machine id, install preset, `hardware_profile.json`, board catalog or hostname.
 Those artifacts may help an embedding application choose a physical source or
 set policy, but cannot prove an accelerator.

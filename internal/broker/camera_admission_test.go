@@ -18,7 +18,7 @@ func TestNativeCompressedCameraAdmissionAttestsDecoderForLiveOnlySourceMove(t *t
 			Transport: videoproviders.TransportV4L2UVC,
 		},
 		cameraAdmission: videoproviders.CameraAdmissionDecision{
-			DevicePath: "/dev/nemesi-video-sources/front", Format: "h265",
+			DevicePath: "/dev/camera/by-id/front", Format: "h265",
 			CaptureWidth: 1280, CaptureHeight: 720, CaptureFPS: 25,
 		},
 		observedCaptureCodec: "h265", observedCaptureWidth: 1280,
@@ -240,7 +240,7 @@ func TestCameraAdmissionDoesNotWaitForDormantRuntimeControlledLiveStream(t *test
 				Transport:      videoproviders.TransportV4L2UVC,
 			},
 			cameraAdmission: videoproviders.CameraAdmissionDecision{
-				DevicePath: "/dev/nemesi-video-sources/front", Format: "yuyv",
+				DevicePath: "/dev/camera/by-id/front", Format: "yuyv",
 				CaptureWidth: 640, CaptureHeight: 360, CaptureFPS: 30,
 			},
 			observedCaptureCodec:  "yuyv",
@@ -316,7 +316,7 @@ func TestCameraAdmissionHonorsIndependentArchiveCadence(t *testing.T) {
 			Transport:       videoproviders.TransportV4L2UVC,
 		},
 		cameraAdmission: videoproviders.CameraAdmissionDecision{
-			DevicePath: "/dev/nemesi-video-sources/front", Format: "h265",
+			DevicePath: "/dev/camera/by-id/front", Format: "h265",
 			CaptureWidth: 1920, CaptureHeight: 1080, CaptureFPS: 30,
 		},
 		observedCaptureCodec:    "h265",
@@ -990,7 +990,7 @@ func TestCameraModeRuntimeFingerprintBindsCanonicalSourceIdentity(t *testing.T) 
 	base := videoBrokerPlan{
 		SourceIdentity: "uvc.front-camera",
 		Transport:      videoproviders.TransportV4L2UVC,
-		CaptureDevice:  "/dev/nemesi-video-main",
+		CaptureDevice:  "/dev/camera/by-id/main",
 		CaptureFormat:  "mjpeg",
 	}
 	replacement := base

@@ -15,7 +15,7 @@ const testRevision = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 func testSource(id string) config.SourceConfig {
 	return config.SourceConfig{
 		Identity: "sha256:" + strings.Repeat(id[len(id)-1:], 64), Transport: "v4l2_uvc",
-		Device: "/dev/nemesi-video-sources/" + id, Format: "h265",
+		Device: "/dev/camera/by-id/" + id, Format: "h265",
 		CodecPreference: "h265", CodecPolicy: "required", ModePolicy: "exact",
 		AspectPolicy: "crop", Width: 1920, Height: 1080, FPS: 30,
 		Processing: config.ProcessingConfig{

@@ -61,7 +61,7 @@ func TestWorkerFanoutChangesCompileRealFiveSourceRoutingMove(t *testing.T) {
 
 func TestWorkerFanoutChangesCompileCanonicalAttachDetachReplace(t *testing.T) {
 	source := productconfig.SourceConfig{
-		Identity: "camera-a", Transport: "v4l2_uvc", Device: "/dev/nemesi-video-sources/camera-a",
+		Identity: "camera-a", Transport: "v4l2_uvc", Device: "/dev/camera/by-id/camera-a",
 		Format: "mjpeg", Width: 1280, Height: 720, FPS: 30,
 	}
 	current := productconfig.SourceGraph{

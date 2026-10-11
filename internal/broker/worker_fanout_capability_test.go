@@ -184,7 +184,7 @@ func TestWorkerFanoutCapabilityRejectsWorkerCaptureChangeAndMisalignment(t *test
 
 func workerFanoutCapabilityGraph(candidate bool) productconfig.SourceGraph {
 	source := productconfig.SourceConfig{
-		Identity: "camera-a", Transport: "v4l2_uvc", Device: "/dev/nemesi-video-sources/camera-a",
+		Identity: "camera-a", Transport: "v4l2_uvc", Device: "/dev/camera/by-id/camera-a",
 		Format: "mjpeg", Width: 1280, Height: 720, FPS: 30,
 		Processing: productconfig.ProcessingConfig{Orientation: "normal"},
 		Acceleration: productconfig.AccelerationConfig{

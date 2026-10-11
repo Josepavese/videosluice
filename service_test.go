@@ -456,7 +456,7 @@ func serviceRoutingCatalog() routing.Catalog {
 		Sources: map[string]config.SourceConfig{
 			"front": {
 				Identity: "sha256:" + strings.Repeat("b", 64), Transport: "v4l2_uvc",
-				Device: "/dev/nemesi-video-sources/front", Format: "h265",
+				Device: "/dev/camera/by-id/front", Format: "h265",
 				CodecPreference: "h265", CodecPolicy: "required", ModePolicy: "exact",
 				AspectPolicy: "crop", Width: 1280, Height: 720, FPS: 20,
 				Processing: config.ProcessingConfig{

@@ -7,7 +7,7 @@ Stato: **CHIUSA - COMPLETATA**. Cutover e rollback pubblicano i metadata del ram
 Evidenza: Commit 8b7ebb8, test di attestazione per ruolo e matrice fisica dei successori fino ad a571.
 
 Riesame del repository e delle prove registrate, non nuova verifica live.
-[Registro della cernita e limiti residui](../../../../improvements/TRIAGE_2026-09-06.md).
+Registro della cernita e limiti residui (operational history retained by the application owner).
 Le sezioni seguenti sono storico cronologico: stati e istruzioni di rilascio
 precedenti non descrivono lo stato operativo corrente.
 

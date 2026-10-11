@@ -181,7 +181,7 @@ func TestCameraAdmissionHasCanonicalFallbackIdentityAndPreferredNode(t *testing.
 	}
 }
 
-func TestCameraAdmissionCanonicalSourceRejectsForeignIdentityBeforeProbe(t *testing.T) {
+func TestCameraAdmissionPreferredSourceRejectsForeignIdentityBeforeProbe(t *testing.T) {
 	frontIdentity := "name=Front Camera;idVendor=2bc5;idProduct=0529;serial=00000000;port=1-1.3"
 	overviewIdentity := "name=Overview Camera;idVendor=2ab8;idProduct=a101;port=1-1.4"
 	frontCaps := []V4L2FormatCapability{
@@ -190,7 +190,7 @@ func TestCameraAdmissionCanonicalSourceRejectsForeignIdentityBeforeProbe(t *test
 	}
 	plan := BrokerMuxPlan{
 		Transport:              TransportV4L2UVC,
-		CaptureDevicePath:      "/dev/nemesi-video-sources/front",
+		CaptureDevicePath:      "/dev/camera/by-id/front",
 		CaptureFormat:          "auto",
 		CaptureCodecPreference: "h265",
 		CaptureCodecPolicy:     "prefer",
@@ -218,9 +218,9 @@ func TestCameraAdmissionCanonicalSourceRejectsForeignIdentityBeforeProbe(t *test
 		}},
 	}
 	identities := map[string]string{
-		"/dev/nemesi-video-sources/front": frontIdentity,
-		"/dev/video0":                     frontIdentity,
-		"/dev/video2":                     overviewIdentity,
+		"/dev/camera/by-id/front": frontIdentity,
+		"/dev/video0":             frontIdentity,
+		"/dev/video2":             overviewIdentity,
 	}
 	identity := func(device string) (string, error) {
 		value, ok := identities[device]
@@ -239,18 +239,18 @@ func TestCameraAdmissionCanonicalSourceRejectsForeignIdentityBeforeProbe(t *test
 	}
 	got, err := ResolveV4L2UVCCameraAdmission(
 		context.Background(), plan,
-		[]string{"/dev/nemesi-video-sources/front", "/dev/video0", "/dev/video2"},
+		[]string{"/dev/camera/by-id/front", "/dev/video0", "/dev/video2"},
 		query, identity,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.DevicePath != "/dev/nemesi-video-sources/front" || got.DeviceIdentity != frontIdentity ||
+	if got.DevicePath != "/dev/camera/by-id/front" || got.DeviceIdentity != frontIdentity ||
 		got.Format != "mjpeg" || got.CaptureWidth != 1280 || got.CaptureHeight != 720 || got.CaptureFPS != 30 {
 		t.Fatalf("identity-bound fallback did not stay on front camera: %+v", got)
 	}
 	if !reflect.DeepEqual(got.ProbedDevices, []string{
-		"/dev/nemesi-video-sources/front", "/dev/video0",
+		"/dev/camera/by-id/front", "/dev/video0",
 	}) || !strings.Contains(strings.Join(got.RejectedDevices, ","), "/dev/video2:identity_mismatch") ||
 		queries["/dev/video2"] != 0 {
 		t.Fatalf("foreign source was not rejected before probing: got=%+v queries=%v", got, queries)
@@ -272,29 +272,33 @@ func TestLinuxDeviceMajorMinorRoundTripsV4L2DeviceNumbers(t *testing.T) {
 	}
 }
 
-func TestCameraAdmissionCanonicalSourceFailsBeforeProbeWithoutIdentity(t *testing.T) {
-	plan := BrokerMuxPlan{
-		Transport:         TransportV4L2UVC,
-		CaptureDevicePath: "/dev/nemesi-video-sources/front",
-		CaptureWidth:      1280,
-		CaptureHeight:     720,
-		CaptureFPS:        30,
-	}
-	queries := 0
-	query := func(context.Context, string) ([]V4L2FormatCapability, error) {
-		queries++
-		return nil, errors.New("unexpected capability query")
-	}
-	identity := func(string) (string, error) {
-		return "", errors.New("missing sysfs identity")
-	}
-	_, err := ResolveV4L2UVCCameraAdmission(
-		context.Background(), plan,
-		[]string{"/dev/nemesi-video-sources/front", "/dev/video0"},
-		query, identity,
-	)
-	if err == nil || !strings.Contains(err.Error(), "cannot attest canonical source identity") || queries != 0 {
-		t.Fatalf("canonical source identity failure was not fail-closed err=%v queries=%d", err, queries)
+func TestCameraAdmissionPreferredSourceFailsBeforeProbeWithoutIdentity(t *testing.T) {
+	for _, selector := range []string{"/dev/video0", "/dev/v4l/by-id/arbitrary-camera", "/dev/custom/source-a"} {
+		t.Run(selector, func(t *testing.T) {
+			plan := BrokerMuxPlan{
+				Transport:         TransportV4L2UVC,
+				CaptureDevicePath: selector,
+				CaptureWidth:      1280,
+				CaptureHeight:     720,
+				CaptureFPS:        30,
+			}
+			queries := 0
+			query := func(context.Context, string) ([]V4L2FormatCapability, error) {
+				queries++
+				return nil, errors.New("unexpected capability query")
+			}
+			identity := func(string) (string, error) {
+				return "", errors.New("missing sysfs identity")
+			}
+			_, err := ResolveV4L2UVCCameraAdmission(
+				context.Background(), plan,
+				[]string{selector, "/dev/video0"},
+				query, identity,
+			)
+			if err == nil || !strings.Contains(err.Error(), "cannot attest preferred source identity") || queries != 0 {
+				t.Fatalf("preferred source identity failure was not fail-closed err=%v queries=%d", err, queries)
+			}
+		})
 	}
 }
 
@@ -448,7 +452,7 @@ func TestFitArchiveGeometryHonorsEncoderAlignmentWithoutDiscardingFallbackMode(t
 func TestFitArchiveGeometryKeepsRDKH265FallbackInsideMacroblockContract(t *testing.T) {
 	width, height := FitArchiveGeometryWithAlignment(960, 540, 960, 540, 16, 8)
 	if width != 960 || height != 536 {
-		t.Fatalf("Cedro-aligned H265 fallback geometry=%dx%d want=960x536", width, height)
+		t.Fatalf("field-profile H265 fallback geometry=%dx%d want=960x536", width, height)
 	}
 
 	width, height = FitArchiveGeometryWithAlignment(1280, 720, 848, 480, 16, 8)

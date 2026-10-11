@@ -60,7 +60,7 @@ type Metrics struct {
 }
 
 // Capture identifies the transport that produced Source. It deliberately
-// carries no board, camera model, or Nemesi identity.
+// carries no board, camera model, or application identity.
 type Capture struct {
 	Format      string `json:"format"`
 	Orientation string `json:"orientation"`

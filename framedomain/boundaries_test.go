@@ -34,7 +34,7 @@ func TestDomainPlatformBoundary(t *testing.T) {
 					t.Fatalf("platform import in domain %s: %s", path, name)
 				}
 			}
-			if strings.Contains(name, "/provider/") || strings.Contains(strings.ToLower(name), "nemesi") {
+			if strings.Contains(name, "/provider/") {
 				t.Fatalf("provider/product coupling in domain %s: %s", path, name)
 			}
 		}

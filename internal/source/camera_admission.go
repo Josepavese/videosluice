@@ -350,19 +350,13 @@ func ResolveV4L2UVCCameraAdmission(
 		CodecPolicy:         codecPolicy,
 		AspectPolicy:        aspectPolicy,
 	}
-	identityBoundPreferred := strings.HasPrefix(preferred, "/dev/nemesi-video-sources/")
 	preferredIdentity := ""
 	if identityQuery != nil && preferred != "" {
 		identity, identityErr := identityQuery(preferred)
 		preferredIdentity = strings.TrimSpace(identity)
 		if identityErr != nil || preferredIdentity == "" {
-			identityScope := "preferred"
-			if identityBoundPreferred {
-				identityScope = "canonical"
-			}
 			return best, fmt.Errorf(
-				"camera admission cannot attest %s source identity device=%s",
-				identityScope,
+				"camera admission cannot attest preferred source identity device=%s",
 				preferred,
 			)
 		}
