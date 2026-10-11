@@ -72,6 +72,7 @@ def main():
     p.add_argument('--archive', type=Path)
     p.add_argument('--sha256')
     p.add_argument('--destination', type=Path, help='managed immutable payload only; no launcher or mutable data')
+    p.add_argument('--runtime-only', action='store_true', help='with destination, install only executables/native libraries')
     p.add_argument('--launcher-dir', type=Path, default=Path.home() / '.local/bin')
     a = p.parse_args()
     if platform.system() != 'Linux' or host_arch() not in ('amd64', 'arm64'):
@@ -81,7 +82,7 @@ def main():
     if a.version != 'latest' and not re.fullmatch(r'v\d+\.\d+\.\d+', a.version):
         p.error('version must be latest or vMAJOR.MINOR.PATCH')
     home = a.home.expanduser().absolute()
-    home.mkdir(parents=True, exist_ok=True)
+    if a.runtime_only and not a.destination: p.error('--runtime-only requires --destination')
     with tempfile.TemporaryDirectory(prefix='videosluice-install-') as scratch:
         scratch = Path(scratch)
         archive, expected = a.archive, a.sha256
@@ -114,9 +115,14 @@ def main():
                     raise ValueError('payload destination must be a real empty directory')
             else:
                 destination.mkdir(parents=True)
-            shutil.copytree(payload, destination, dirs_exist_ok=True)
+            if a.runtime_only:
+                shutil.copy2(payload / 'videosluice', destination / 'videosluice')
+                shutil.copytree(payload / 'bin', destination / 'bin')
+            else:
+                shutil.copytree(payload, destination, dirs_exist_ok=True)
             print(json.dumps({'installed': str(destination), 'release': manifest['version'], 'sha256': expected}))
             return
+        home.mkdir(parents=True, exist_ok=True)
         for name in ('bin', 'configs', 'data', 'logs', 'artifacts', 'backups', 'tmp', 'releases'):
             (home / name).mkdir(exist_ok=True)
         target = home / 'releases' / expected
