@@ -1,0 +1,25 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+      - run: scripts/check.sh
+      - name: Release dry run and installer
+        run: |
+          scratch=$(mktemp -d)
+          trap 'rm -rf "$scratch"' EXIT
+          scripts/build-release.sh "$scratch" portable
+          archive=$(find "$scratch" -name '*.tar.gz')
+          sha=$(cut -d' ' -f1 "$archive.sha256")
+          python3 scripts/test-installer.py "$archive" "$sha" portable

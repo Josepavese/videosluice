@@ -1,0 +1,6 @@
+/dist/
+/bin/
+*.pyc
+__pycache__/
+*.so
+/videosluice

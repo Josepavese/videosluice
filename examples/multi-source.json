@@ -1,0 +1,114 @@
+{
+  "schema_version": 3,
+  "sources": {
+    "front": {
+      "identity": "uvc.front",
+      "transport": "v4l2_uvc",
+      "device": "/dev/video0",
+      "format": "h265",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "host_index": -1,
+      "processing": {
+        "orientation": "normal",
+        "quality": {
+          "enabled": false
+        },
+        "tone_mapping": {
+          "mode": "off"
+        },
+        "camera_control_optimizer": {
+          "policy": "auto",
+          "mode": "off"
+        }
+      },
+      "acceleration": {
+        "encode_provider": "auto",
+        "decode_provider": "auto",
+        "require_hardware_codec": true,
+        "allow_software_fallback": false,
+        "discovery": {
+          "mode": "auto",
+          "probe_timeout_ms": 8000
+        }
+      }
+    },
+    "side": {
+      "identity": "uvc.side",
+      "transport": "v4l2_uvc",
+      "device": "/dev/video2",
+      "format": "nv12",
+      "width": 1280,
+      "height": 720,
+      "fps": 30,
+      "host_index": -1,
+      "processing": {
+        "orientation": "normal",
+        "quality": {
+          "enabled": false
+        },
+        "tone_mapping": {
+          "mode": "off"
+        },
+        "camera_control_optimizer": {
+          "policy": "auto",
+          "mode": "off"
+        }
+      },
+      "acceleration": {
+        "encode_provider": "auto",
+        "decode_provider": "auto",
+        "require_hardware_codec": false,
+        "allow_software_fallback": true,
+        "discovery": {
+          "mode": "auto",
+          "probe_timeout_ms": 8000
+        }
+      }
+    }
+  },
+  "streams": {
+    "front_archive": {
+      "type": "archive",
+      "source_ref": "front",
+      "socket": "/run/video-broker/front/archive.sock",
+      "codec": "h265",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "bitrate_kbps": 8192,
+      "content": "adaptive"
+    },
+    "side_analysis": {
+      "type": "analysis",
+      "source_ref": "side",
+      "socket": "/run/video-broker/side/analysis.sock",
+      "shared_memory": "/run/video-broker/side/analysis.nv12",
+      "notify_socket": "/run/video-broker/side/analysis.notify.sock",
+      "pixel_format": "nv12",
+      "width": 640,
+      "height": 360,
+      "fps": 15
+    }
+  },
+  "runtime": {
+    "frame_watchdog_seconds": 12,
+    "live_write_timeout_ms": 2000,
+    "state_directory": "/var/lib/video-broker",
+    "runtime_directory": "/run/video-broker",
+    "engine_directory": "/opt/video-broker/bin",
+    "status": {
+      "socket": "/run/video-broker/status.sock",
+      "interval_seconds": 10
+    },
+    "governor": {
+      "enabled": true,
+      "poll_seconds": 5,
+      "thermal_soft_celsius": 80,
+      "thermal_hard_celsius": 85,
+      "bpu_threshold_percent": 90,
+      "state_path": "/run/video-broker/resource-governor.json"
+    }
+  }
+}

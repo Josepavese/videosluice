@@ -1,0 +1,118 @@
+{
+  "schema_version": 3,
+  "sources": {
+    "camera": {
+      "identity": "libcamera.camera",
+      "transport": "libcamera",
+      "device": "",
+      "format": "nv12",
+      "codec_preference": "h265",
+      "codec_policy": "prefer",
+      "mode_policy": "exact",
+      "aspect_policy": "crop",
+      "allow_scaled_yuyv": false,
+      "prefer_exact_yuyv": true,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "warmup_seconds": 3,
+      "select_timeout_ms": 2000,
+      "max_consecutive_stalls": 3,
+      "control_profile": "auto",
+      "sensor": "imx708",
+      "host_index": 0,
+      "processing": {
+        "orientation": "normal",
+        "quality": {
+          "enabled": true,
+          "report_every_frames": 300,
+          "sample_stride": 8,
+          "state_path": "/run/video-broker/quality.json",
+          "admission_path": "/run/video-broker/camera-admission.json"
+        },
+        "tone_mapping": {
+          "profile": "adaptive",
+          "accelerator": "auto",
+          "mode": "auto",
+          "target_luma": 128,
+          "hysteresis": 12,
+          "grid_columns": 16,
+          "grid_rows": 9,
+          "statistics_hz": 8,
+          "max_shadow_gain": 2.4,
+          "max_highlight_reduction": 0.2,
+          "temporal_alpha": 0.35,
+          "noise_guard": true
+        },
+        "camera_control_optimizer": {
+          "policy": "auto",
+          "mode": "off"
+        }
+      },
+      "acceleration": {
+        "encode_provider": "auto",
+        "decode_provider": "auto",
+        "require_hardware_codec": false,
+        "allow_software_fallback": true,
+        "discovery": {
+          "mode": "auto",
+          "probe_timeout_ms": 8000
+        }
+      }
+    }
+  },
+  "streams": {
+    "live": {
+      "socket": "/run/video-broker/live.sock",
+      "codec": "h265",
+      "width": 1280,
+      "height": 720,
+      "fps": 20,
+      "bitrate_kbps": 4096,
+      "content": "processed",
+      "type": "live",
+      "source_ref": "camera"
+    },
+    "analysis": {
+      "socket": "/run/video-broker/analysis.sock",
+      "shared_memory": "/run/video-broker/analysis.nv12",
+      "notify_socket": "/run/video-broker/analysis.notify.sock",
+      "pixel_format": "nv12",
+      "width": 640,
+      "height": 360,
+      "fps": 20,
+      "type": "analysis",
+      "source_ref": "camera"
+    },
+    "archive": {
+      "socket": "/run/video-broker/archive.sock",
+      "codec": "auto",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "bitrate_kbps": 8192,
+      "content": "adaptive",
+      "type": "archive",
+      "source_ref": "camera"
+    }
+  },
+  "runtime": {
+    "frame_watchdog_seconds": 12,
+    "live_write_timeout_ms": 2000,
+    "state_directory": "/var/lib/video-broker",
+    "runtime_directory": "/run/video-broker",
+    "engine_directory": "/opt/video-broker/bin",
+    "status": {
+      "socket": "/run/video-broker/status.sock",
+      "interval_seconds": 10
+    },
+    "governor": {
+      "enabled": true,
+      "poll_seconds": 5,
+      "thermal_soft_celsius": 80,
+      "thermal_hard_celsius": 85,
+      "bpu_threshold_percent": 90,
+      "state_path": "/run/video-broker/resource-governor.json"
+    }
+  }
+}

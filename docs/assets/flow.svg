@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 360" role="img" aria-labelledby="title desc">
+<title id="title">VideoSluice: capture once, feed every video workflow</title><desc id="desc">One capture graph per camera discovers media engines and distributes video into independent live, archive and analysis outputs.</desc>
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#102436"/><stop offset="1" stop-color="#08121d"/></linearGradient><linearGradient id="flow"><stop stop-color="#22d3ee"/><stop offset="1" stop-color="#4ade80"/></linearGradient></defs>
+<rect width="1120" height="360" rx="24" fill="url(#bg)"/>
+<g font-family="system-ui, sans-serif"><text x="44" y="57" fill="#f0f9ff" font-size="27" font-weight="700">VideoSluice</text><text x="44" y="86" fill="#94a3b8" font-size="15">ONE CAPTURE. INDEPENDENT OUTPUTS.</text>
+<g fill="none" stroke="url(#flow)" stroke-width="4"><path d="M248 198H382M713 198H774V142H832M774 198H832M774 198V254H832"/></g>
+<rect x="44" y="139" width="204" height="118" rx="14" fill="#142f44" stroke="#32566e"/><text x="69" y="179" fill="#f0f9ff" font-size="20" font-weight="600">Your cameras</text><text x="69" y="210" fill="#94a3b8" font-size="15">UVC · V4L2 · CSI</text><text x="69" y="235" fill="#94a3b8" font-size="13">One owner per source</text>
+<rect x="382" y="125" width="331" height="146" rx="16" fill="#123c48" stroke="#22d3ee"/><text x="406" y="161" fill="#e0faff" font-size="22" font-weight="700">VideoSluice broker</text><text x="406" y="193" fill="#b7e4ea" font-size="15">Discover → plan → attest</text><text x="406" y="218" fill="#b7e4ea" font-size="15">Decode · condition · encode</text><text x="406" y="247" fill="#67e8f9" font-size="13">Bounded fan-out · source-local recovery</text>
+<g fill="#132d2d" stroke="#4b7266"><rect x="832" y="116" width="240" height="50" rx="10"/><rect x="832" y="174" width="240" height="50" rx="10"/><rect x="832" y="232" width="240" height="50" rx="10"/></g>
+<g fill="#e3fff0" font-size="17" font-weight="600"><text x="852" y="147">Live → interactive delivery</text><text x="852" y="205">Archive → recording</text><text x="852" y="263">Analysis → frames / ROI</text></g>
+<text x="44" y="322" fill="#8ca3b7" font-size="14">Hardware-aware graphs. Stable local contracts. Your application owns the workflow.</text></g></svg>

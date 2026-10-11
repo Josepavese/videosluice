@@ -1,0 +1,56 @@
+{
+  "schema_version": 3,
+  "sources": {
+    "record": {
+      "identity": "uvc.record",
+      "transport": "v4l2_uvc",
+      "device": "/dev/video0",
+      "format": "h265",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "host_index": -1,
+      "processing": {
+        "orientation": "normal",
+        "quality": {"enabled": false},
+        "tone_mapping": {"mode": "off"},
+        "camera_control_optimizer": {"policy": "auto", "mode": "off"}
+      },
+      "acceleration": {
+        "encode_provider": "auto",
+        "decode_provider": "auto",
+        "require_hardware_codec": true,
+        "allow_software_fallback": false,
+        "discovery": {"mode": "auto", "probe_timeout_ms": 8000}
+      }
+    }
+  },
+  "streams": {
+    "archive": {
+      "type": "archive",
+      "source_ref": "record",
+      "socket": "/run/video-broker/archive.sock",
+      "codec": "h265",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "bitrate_kbps": 8192,
+      "content": "adaptive"
+    }
+  },
+  "runtime": {
+    "frame_watchdog_seconds": 12,
+    "live_write_timeout_ms": 2000,
+    "state_directory": "/var/lib/video-broker",
+    "runtime_directory": "/run/video-broker",
+    "status": {"socket": "/run/video-broker/status.sock", "interval_seconds": 10},
+    "governor": {
+      "enabled": true,
+      "poll_seconds": 5,
+      "thermal_soft_celsius": 80,
+      "thermal_hard_celsius": 85,
+      "bpu_threshold_percent": 90,
+      "state_path": "/run/video-broker/resource-governor.json"
+    }
+  }
+}

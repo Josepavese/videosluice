@@ -1,0 +1,47 @@
+name: Release
+on:
+  push:
+    tags: ['v*.*.*']
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: test "${GITHUB_REF_NAME}" = "v$(cat VERSION)"
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+      - run: scripts/check.sh
+      - run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          scripts/build-release.sh "$RUNNER_TEMP/release" portable
+          archive=$(find "$RUNNER_TEMP/release" -name '*.tar.gz')
+          python3 scripts/test-installer.py "$archive" "$(cut -d' ' -f1 "$archive.sha256")" portable
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: ${{ runner.temp }}/release/*
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/release
+          merge-multiple: true
+      - run: |
+          cd "$RUNNER_TEMP/release"
+          cat *.sha256 > SHA256SUMS
+          cp "$GITHUB_WORKSPACE/install/install.sh" "$GITHUB_WORKSPACE/install/install.py" .
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "VideoSluice $GITHUB_REF_NAME" --generate-notes ./*.tar.gz SHA256SUMS install.sh install.py
+        env:
+          GH_TOKEN: ${{ github.token }}
