@@ -38,11 +38,13 @@ import json,pathlib,shutil,subprocess,sys
 stage=pathlib.Path(sys.argv[1]); licenses=stage/'licenses';licenses.mkdir()
 modules=json.loads(subprocess.check_output(['go','list','-m','-json','all']).decode().replace('}\n{','},\n{').join(['[',']']))
 for module in modules:
- if module.get('Main'):continue
+ if module.get('Main') or not module.get('Dir'):continue
  directory=pathlib.Path(module['Dir'])
  for p in directory.glob('LICENSE*'):
   target=licenses/(module['Path'].replace('/','_')+'-'+p.name)
-  if p.is_dir(): shutil.copytree(p,target)
+  if p.is_dir():
+   shutil.copytree(p,target)
+   for directory in [target,*[d for d in target.rglob('*') if d.is_dir()]]: directory.chmod(0o755)
   else: shutil.copy2(p,target)
 manifest=json.loads((stage/'release.json').read_text())
 import hashlib
