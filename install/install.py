@@ -58,6 +58,11 @@ def unpack(archive, destination, expected):
             raise ValueError('release member hash mismatch: ' + name)
     if manifest['os'] != 'linux' or manifest['arch'] != host_arch():
         raise ValueError('release platform differs from host')
+    # Extraction may inherit a builder's permissive umask. Immutable runtime
+    # payloads always use canonical executable/read-only permissions.
+    for path in destination.rglob('*'):
+        if path.is_file(): path.chmod(0o755 if path.stat().st_mode & 0o111 else 0o644)
+        elif path.is_dir(): path.chmod(0o755)
     return manifest
 
 def host_arch():
@@ -131,7 +136,8 @@ def main():
             # Reinstall verifies the retained complete payload before activation.
             if (target / 'release.json').read_bytes() != (payload / 'release.json').read_bytes(): raise ValueError('retained release manifest differs')
             for name, sha in manifest['files'].items():
-                if digest(target / name) != sha: raise ValueError('retained release is modified')
+                if (target / name).is_symlink() or digest(target / name) != sha: raise ValueError('retained release is modified')
+                (target / name).chmod(0o755 if (target / name).stat().st_mode & 0o111 else 0o644)
         else:
             staging = Path(tempfile.mkdtemp(prefix='.stage-', dir=home / 'releases'))
             try:

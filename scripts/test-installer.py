@@ -24,6 +24,8 @@ with tempfile.TemporaryDirectory(prefix='videosluice-smoke-') as work:
     destination = root / 'payload'
     subprocess.run(cmd + ['--destination', str(destination)], check=True)
     assert (destination / 'videosluice').is_file() and (destination / 'bin/libvideo_broker_frame_peer.so').is_file()
+    for path in destination.rglob('*'):
+        if path.is_file(): assert path.stat().st_mode & 0o022 == 0, path
     manifest = json.loads((destination / 'release.json').read_text())
     subprocess.run([str(destination / 'videosluice'), '--check-config', '--config', str(destination / 'examples/uvc-mjpeg.json')], check=True, stdout=subprocess.DEVNULL)
     print('PASS fresh/reinstall/preserved-data/preserved-config/bad-hash/payload/config:', manifest['version'], manifest['arch'], manifest['variant'])

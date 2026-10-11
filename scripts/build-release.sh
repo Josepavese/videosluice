@@ -51,6 +51,12 @@ import hashlib
 manifest['files'].update({p.relative_to(stage).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in licenses.rglob('*') if p.is_file()})
 (stage/'release.json').write_text(json.dumps(manifest,sort_keys=True,indent=2)+'\n')
 PYLIC
+python3 - "$stage" <<'PYMODE'
+import pathlib,sys
+for path in pathlib.Path(sys.argv[1]).rglob('*'):
+ if path.is_file(): path.chmod(0o755 if path.stat().st_mode & 0o111 else 0o644)
+ elif path.is_dir(): path.chmod(0o755)
+PYMODE
 version="v$(cat VERSION)"
 archive="$output/videosluice-$version-linux-$arch-$variant.tar.gz"
 tar -C "$stage" --sort=name --mtime='UTC 2026-01-01' --owner=0 --group=0 --numeric-owner -czf "$archive" .
