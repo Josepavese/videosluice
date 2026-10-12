@@ -87,7 +87,15 @@ int framepeer_linux_receive(framepeer_linux_launch *state, uint8_t *data,
 }
 int observed_current_gil(void) { return current_gil; }
 int observed_receive_gil(void) { return receive_gil; }
+#define video_broker_frame_delivery_last_timing real_last_timing
 #include "frame_peer_python.c"
+#undef video_broker_frame_delivery_last_timing
+static int timing_gil = -1;
+int video_broker_frame_delivery_last_timing(uint64_t *out, size_t count) {
+    timing_gil = PyGILState_Check();
+    return real_last_timing(out,count);
+}
+int observed_timing_gil(void) { return timing_gil; }
 """)
         self.library = str(Path(self.temporary.name) / "libgil_probe.so")
         subprocess.run(["cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
@@ -100,6 +108,14 @@ int observed_receive_gil(void) { return receive_gil; }
         writer.send(b"record")
         self.assertEqual(value.receive(32, time.monotonic()+1), b"record")
         self.assertEqual(value._lib.observed_receive_gil(), 0)
+        # Real idle transaction, including the production finally block. Its
+        # fixed 32-byte diagnostic copy must not yield behind native inference.
+        request = b"FAPN\1\0\0\0"+struct.pack(">2Q", 7, 9)
+        idle = b"FAPI\1\0\0\0"+struct.pack(">2Q", 7, 9)
+        writer.send(idle)
+        progress = DeliveryProgress()
+        self.assertEqual(value.read_delivery(request,bytearray(4),time.monotonic()+1,progress)[1],idle)
+        self.assertEqual(value._lib.observed_timing_gil(),1)
 
     def test_complete_delivery_advances_while_python_gil_is_held(self):
         from concurrent.futures import ThreadPoolExecutor

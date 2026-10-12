@@ -70,6 +70,12 @@ class LinuxPacketChannel:
         # socket waits, payload transfer, bootstrap and close still release it.
         self._bounded_current = c.PYFUNCTYPE(c.c_int, c.c_void_p)(
             ("framepeer_linux_current", library))
+        # The getter copies four thread-local counters, with no locks, IO or
+        # allocation. Releasing the GIL here can delay a completed transaction
+        # behind unrelated inference AFTER its native deadline checks passed.
+        self._bounded_last_timing = c.PYFUNCTYPE(
+            c.c_int, c.POINTER(c.c_uint64), c.c_size_t)(
+                ("video_broker_frame_delivery_last_timing", library))
         size = int(library.video_broker_frame_peer_state_bytes())
         if not 0 < size <= 1024:
             raise Invalid("frame peer native state size")
@@ -264,7 +270,7 @@ class LinuxPacketChannel:
                         bytes(payload_sha), int(counters[5]))
             finally:
                 timings = (c.c_uint64*4)()
-                if self._lib.video_broker_frame_delivery_last_timing(timings, 4) == 0:
+                if self._bounded_last_timing(timings, 4) == 0:
                     (progress.native_send_us, progress.native_descriptor_us,
                      progress.native_payload_receive_us, progress.native_integrity_us) = (
                         int(value) for value in timings)
