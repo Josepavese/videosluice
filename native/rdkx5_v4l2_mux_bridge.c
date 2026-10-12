@@ -509,6 +509,19 @@ static void metrics_log_if_due(runtime_metrics_t *metrics, video_broker_frame_so
 			(unsigned long long)(source->publish_phase_cpu_at_wall_max_ns[1]/1000),
 			(unsigned long long)(source->publish_phase_wall_max_ns[2]/1000),
 			(unsigned long long)(source->publish_phase_cpu_at_wall_max_ns[2]/1000));
+		vb_diagnostic_pipe_printf(&g_telemetry, "[rdkx5_v4l2_mux_bridge][metrics] event=native_output_submission_summary"
+			" source=%s scope=lifetime transform_wall_max_us=%llu transform_cpu_us=%llu"
+			" authority_wall_max_us=%llu authority_cpu_us=%llu"
+			" layout_wall_max_us=%llu layout_cpu_us=%llu"
+			" submit_wall_max_us=%llu submit_cpu_us=%llu\n", source->definition.source,
+			(unsigned long long)(source->output_phase_wall_max_ns[0]/1000),
+			(unsigned long long)(source->output_phase_cpu_at_wall_max_ns[0]/1000),
+			(unsigned long long)(source->output_phase_wall_max_ns[1]/1000),
+			(unsigned long long)(source->output_phase_cpu_at_wall_max_ns[1]/1000),
+			(unsigned long long)(source->output_phase_wall_max_ns[2]/1000),
+			(unsigned long long)(source->output_phase_cpu_at_wall_max_ns[2]/1000),
+			(unsigned long long)(source->output_phase_wall_max_ns[3]/1000),
+			(unsigned long long)(source->output_phase_cpu_at_wall_max_ns[3]/1000));
 	}
 	metrics->last_log_us = now_us;
 	metrics->frames = 0;

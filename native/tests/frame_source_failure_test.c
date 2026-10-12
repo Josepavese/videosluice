@@ -9,8 +9,16 @@
 #include <string.h>
 #include <time.h>
 
-int framepeer_linux_current(framepeer_linux_launch *launch) {
-    assert(launch->accepted);return 0;
+static pthread_t capture_thread;
+static int delay_capture_authority;
+int __wrap_framepeer_linux_current(framepeer_linux_launch *launch) {
+    assert(launch->accepted);
+    if(pthread_equal(pthread_self(),capture_thread)&&delay_capture_authority) {
+        delay_capture_authority=0;
+        struct timespec pause={.tv_nsec=50000000};
+        assert(nanosleep(&pause,NULL)==0);
+    }
+    return 0;
 }
 static void await_output(video_broker_frame_source *s,unsigned published) {
     for(int i=0;i<200;i++) {
@@ -22,9 +30,11 @@ static void await_output(video_broker_frame_source *s,unsigned published) {
     assert(!"native output did not publish within two seconds");
 }
 int main(void) {
+    capture_thread=pthread_self();
     uint8_t pixels[96*64*3/2]={0};
     video_broker_frame_source source={.initialized=1,.enabled=1,.geometry_verified=1,.sequence=1};
     source.launch.accepted=true;
+    assert(pthread_mutex_init(&source.authority_mutex,NULL)==0);
     source.definition=(vbcf_header){.kind=4,.codec=3,.surface=1,.width=192,.height=128,
         .stride_y=192,.stride_uv=192,.source_epoch=7};
     source.definition.namespace_id[0]=1;source.definition.graph[0]=1;source.definition.transform[0]=7;
@@ -38,6 +48,7 @@ int main(void) {
     source.output_mailbox=vbsm_source_mailbox_attach(fd,&mapping,&error);assert(source.output_mailbox&&!error);
     assert(vbsm_source_mailbox_confirm(reader)==0);
     source.output_capacity=sizeof(pixels);
+    delay_capture_authority=1;
     /* Twenty complete frames replace two RAM slots with no consumer reads. */
     for(unsigned frame=1;frame<=20;frame++) {
         memset(pixels,(int)frame,sizeof(pixels));source.sequence=frame;
@@ -47,6 +58,11 @@ int main(void) {
         memset(pixels,0xee,sizeof(pixels));
         assert(!source.failed&&!source.output_retired);
     }
+    /* Injected authority wait must be distinguished from CPU work and from
+     * the detached publisher. Delivery bytes/counters still use the oracle. */
+    assert(source.output_phase_wall_max_ns[1]>=45000000);
+    assert(source.output_phase_cpu_at_wall_max_ns[1]<source.output_phase_wall_max_ns[1]);
+    for(unsigned phase=0;phase<4;phase++)assert(source.output_phase_wall_max_ns[phase]>0);
     uint8_t snapshot[VBCF_HEADER_SIZE+sizeof(pixels)];size_t used;uint64_t serial;
     for(unsigned slot=0;slot<2;slot++) {
         assert(vbsm_source_mailbox_stage(reader,slot,0,snapshot,sizeof(snapshot),&used,&serial)==0);
@@ -58,5 +74,6 @@ int main(void) {
     assert(vbsp_close(source.output_publisher,1000)==0);source.output_publisher=NULL;
     assert(vbsm_source_mailbox_close(source.output_mailbox)==0);source.output_mailbox=NULL;
     assert(vbsm_source_mailbox_close(reader)==0);
+    assert(pthread_mutex_destroy(&source.authority_mutex)==0);
     puts("OK_NATIVE_OUTPUT_MAILBOX_NO_READER_NO_CAPTURE_FAILURE");return 0;
 }

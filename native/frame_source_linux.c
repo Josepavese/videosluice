@@ -95,6 +95,16 @@ static uint64_t diagnostic_span(uint64_t start,uint64_t end) {
     return start&&end>=start?end-start:0;
 }
 enum {SOURCE_PUBLISH_HEALTH,SOURCE_PUBLISH_AUTHORITY,SOURCE_PUBLISH_SUBMIT};
+enum {OUTPUT_TRANSFORM,OUTPUT_AUTHORITY,OUTPUT_LAYOUT,OUTPUT_SUBMIT};
+static void observe_output_phase(video_broker_frame_source *s,int phase,
+    uint64_t wall_start,uint64_t cpu_start) {
+    uint64_t wall=diagnostic_span(wall_start,diagnostic_now_ns());
+    uint64_t cpu=diagnostic_span(cpu_start,diagnostic_cpu_ns());
+    if(wall>s->output_phase_wall_max_ns[phase]) {
+        s->output_phase_wall_max_ns[phase]=wall;
+        s->output_phase_cpu_at_wall_max_ns[phase]=cpu;
+    }
+}
 static void observe_publish_phase(video_broker_frame_source *s,int phase,
     uint64_t wall_start,uint64_t cpu_start) {
     uint64_t wall=diagnostic_span(wall_start,diagnostic_now_ns());
@@ -342,7 +352,11 @@ int video_broker_frame_source_output(video_broker_frame_source *s,
     size_t name_size=stream_length(layout->stream);
     if(!name_size)return fail(s,"output_stream",FRAMEPEER_INVALID);
     int rc=publisher_health(s);if(rc)return rc;
-    rc=current(s);if(rc)return fail(s,"output_authority",rc);
+    uint64_t wall_start=diagnostic_now_ns(),cpu_start=diagnostic_cpu_ns();
+    rc=current(s);
+    observe_output_phase(s,OUTPUT_AUTHORITY,wall_start,cpu_start);
+    if(rc)return fail(s,"output_authority",rc);
+    wall_start=diagnostic_now_ns();cpu_start=diagnostic_cpu_ns();
     if((origin.epoch||origin.sequence)&&
        (origin.epoch!=s->definition.source_epoch||!origin.sequence||origin.sequence>s->sequence))
         return fail(s,"output_origin_foreign",FRAMEPEER_UNAUTHORIZED);
@@ -371,7 +385,10 @@ int video_broker_frame_source_output(video_broker_frame_source *s,
         return retire_output(s,"output_budget",FRAMEPEER_UNAVAILABLE);
     memcpy(s->outputs[slot].stream,layout->stream,name_size+1);
     s->outputs[slot].sequence=h.output_sequence;
+    observe_output_phase(s,OUTPUT_LAYOUT,wall_start,cpu_start);
+    wall_start=diagnostic_now_ns();cpu_start=diagnostic_cpu_ns();
     rc=vbsp_submit(s->output_publisher,&h,pixels,size,now+(uint64_t)timeout_ms*1000000);
+    observe_output_phase(s,OUTPUT_SUBMIT,wall_start,cpu_start);
     if(rc==VBSP_BUSY||rc==VBSP_EXPIRED||rc==VBSP_REPLACED||rc==VBSP_CLOSED) {
         s->unavailable++;s->stage="source_output_unavailable";return 1;
     }
@@ -385,10 +402,12 @@ int video_broker_frame_source_nv12_output(video_broker_frame_source *s,const cha
     if(s->failed)return FRAMEPEER_RETIRED;
     if(!s->enabled)return 0;
     uint8_t digest[32];
-    if(video_broker_nv12_transform_digest((int)s->definition.width,(int)s->definition.height,
+    uint64_t wall_start=diagnostic_now_ns(),cpu_start=diagnostic_cpu_ns();
+    int rc=video_broker_nv12_transform_digest((int)s->definition.width,(int)s->definition.height,
         (int)s->definition.stride_y,width,height,(video_broker_video_orientation_t)orientation,
-        (video_broker_nv12_aspect_policy_t)aspect_policy,sha,NULL,digest))
-        return fail(s,"output_transform",FRAMEPEER_RECORD);
+        (video_broker_nv12_aspect_policy_t)aspect_policy,sha,NULL,digest);
+    observe_output_phase(s,OUTPUT_TRANSFORM,wall_start,cpu_start);
+    if(rc)return fail(s,"output_transform",FRAMEPEER_RECORD);
     video_broker_frame_output_layout layout={.stream=stream,.codec=3,
         .width=(uint32_t)width,.height=(uint32_t)height,.stride_y=(uint32_t)width,.stride_uv=(uint32_t)width,.transform=digest};
     return video_broker_frame_source_output(s,&layout,origin,pixels,size,timeout_ms);

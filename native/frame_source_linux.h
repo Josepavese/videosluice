@@ -40,6 +40,8 @@ typedef struct {
     uint64_t last_slow_output_ns;
     uint64_t publish_attempts;
     uint64_t publish_phase_wall_max_ns[3],publish_phase_cpu_at_wall_max_ns[3];
+    /* Capture-thread observations only; detached workers never write these. */
+    uint64_t output_phase_wall_max_ns[4],output_phase_cpu_at_wall_max_ns[4];
     size_t attempt_payload_bytes;
     const char *stage;
 } video_broker_frame_source;
