@@ -25,3 +25,23 @@ zero-copy or platform-certification claim follows from a fixture or CI result.
 
 Application-specific operational history and integration fixtures belong to their
 owners. Product tests exercise the public contracts without their source trees.
+
+## v0.1.3 integrated qualification
+
+On 2026-10-13, the released ARM64 RDK X5 payload at source
+`4d4b706ba6b714a4f0311ad5cc066e35ac778085` passed a fresh production window of
+1260.10 seconds with 2513 authenticated samples, 24367 additional analyzed
+frames, an unchanged source epoch, two archive finalizations and zero archive
+or raw drops. Maximum board temperature was 84.326 °C. The unchanged production
+policy accepted one isolated collection overrun; maximum collection duration
+was 2.539 seconds. The final authenticated sample retained the same invocation,
+with no tracker, recorder or broker restart. Installed runtime/SDK hashes and
+configuration fingerprints were verified against the release and baseline.
+
+Earlier runs retained a capture discontinuity following a three-second mux
+write pause and failed pre-stop quiescence observations involving kernel hash
+and filesystem waits. Their underlying cause remains unresolved. The passing
+window ran after a complete power cycle with the same payload and thresholds.
+This evidence covers that board, configured workload and operating window;
+administrative-load latency and other hardware profiles require their own proof.
+Detailed authenticated receipts stay with the integrating application owner.
