@@ -513,7 +513,8 @@ static void metrics_log_if_due(runtime_metrics_t *metrics, video_broker_frame_so
 			" source=%s scope=lifetime transform_wall_max_us=%llu transform_cpu_us=%llu"
 			" authority_wall_max_us=%llu authority_cpu_us=%llu"
 			" layout_wall_max_us=%llu layout_cpu_us=%llu"
-			" submit_wall_max_us=%llu submit_cpu_us=%llu\n", source->definition.source,
+			" submit_wall_max_us=%llu submit_cpu_us=%llu"
+			" transform_cache_hits=%llu transform_cache_misses=%llu\n", source->definition.source,
 			(unsigned long long)(source->output_phase_wall_max_ns[0]/1000),
 			(unsigned long long)(source->output_phase_cpu_at_wall_max_ns[0]/1000),
 			(unsigned long long)(source->output_phase_wall_max_ns[1]/1000),
@@ -521,7 +522,9 @@ static void metrics_log_if_due(runtime_metrics_t *metrics, video_broker_frame_so
 			(unsigned long long)(source->output_phase_wall_max_ns[2]/1000),
 			(unsigned long long)(source->output_phase_cpu_at_wall_max_ns[2]/1000),
 			(unsigned long long)(source->output_phase_wall_max_ns[3]/1000),
-			(unsigned long long)(source->output_phase_cpu_at_wall_max_ns[3]/1000));
+			(unsigned long long)(source->output_phase_cpu_at_wall_max_ns[3]/1000),
+			(unsigned long long)source->output_transform_cache.hits,
+			(unsigned long long)source->output_transform_cache.misses);
 	}
 	metrics->last_log_us = now_us;
 	metrics->frames = 0;

@@ -35,4 +35,42 @@ static inline int video_broker_nv12_transform_digest(
     if(hash(hash_context,encoded,offset,digest)){memset(digest,0,32);return -1;}
     return 0;
 }
+
+/* Capture-thread owned, one entry per source lifetime. Only the mathematical
+ * transform is reusable: never cache pixels, origin/epoch, authority or payload
+ * integrity. The complete input tuple and hash provider fence every reuse. */
+typedef struct {
+    int valid,key[7];
+    vbcf_sha256_fn hash;
+    void *hash_context;
+    uint8_t digest[32];
+    uint64_t hits,misses;
+} video_broker_nv12_transform_cache;
+
+static inline int video_broker_nv12_transform_digest_cached(
+    video_broker_nv12_transform_cache *cache,
+    int src_w,int src_h,int src_stride,int dst_w,int dst_h,
+    video_broker_video_orientation_t orientation,
+    video_broker_nv12_aspect_policy_t policy,
+    vbcf_sha256_fn hash,void *hash_context,uint8_t digest[32]) {
+    if(!digest)return -1;
+    memset(digest,0,32);
+    if(!cache||!hash)return -1;
+    const int key[]={src_w,src_h,src_stride,dst_w,dst_h,(int)orientation,(int)policy};
+    if(cache->valid&&cache->hash==hash&&cache->hash_context==hash_context&&
+       !memcmp(cache->key,key,sizeof(key))) {
+        memcpy(digest,cache->digest,32);
+        if(cache->hits<UINT64_MAX)cache->hits++;
+        return 0;
+    }
+    cache->valid=0;
+    if(cache->misses<UINT64_MAX)cache->misses++;
+    int rc=video_broker_nv12_transform_digest(src_w,src_h,src_stride,dst_w,dst_h,
+        orientation,policy,hash,hash_context,digest);
+    if(rc)return rc;
+    memcpy(cache->key,key,sizeof(key));
+    memcpy(cache->digest,digest,32);
+    cache->hash=hash;cache->hash_context=hash_context;cache->valid=1;
+    return 0;
+}
 #endif

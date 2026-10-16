@@ -63,6 +63,7 @@ int main(void) {
     assert(source.output_phase_wall_max_ns[1]>=45000000);
     assert(source.output_phase_cpu_at_wall_max_ns[1]<source.output_phase_wall_max_ns[1]);
     for(unsigned phase=0;phase<4;phase++)assert(source.output_phase_wall_max_ns[phase]>0);
+    assert(source.output_transform_cache.misses==1&&source.output_transform_cache.hits==19);
     uint8_t snapshot[VBCF_HEADER_SIZE+sizeof(pixels)];size_t used;uint64_t serial;
     for(unsigned slot=0;slot<2;slot++) {
         assert(vbsm_source_mailbox_stage(reader,slot,0,snapshot,sizeof(snapshot),&used,&serial)==0);

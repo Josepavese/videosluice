@@ -5,6 +5,7 @@
 #include "launch.h"
 #include "causal_envelope.h"
 #include "capture_correlation.h"
+#include "nv12_causal_transform.h"
 #include "../framewire/provider/linux/native/source_mailbox.h"
 #include "source_publisher.h"
 #include <pthread.h>
@@ -42,6 +43,7 @@ typedef struct {
     uint64_t publish_phase_wall_max_ns[3],publish_phase_cpu_at_wall_max_ns[3];
     /* Capture-thread observations only; detached workers never write these. */
     uint64_t output_phase_wall_max_ns[4],output_phase_cpu_at_wall_max_ns[4];
+    video_broker_nv12_transform_cache output_transform_cache;
     size_t attempt_payload_bytes;
     const char *stage;
 } video_broker_frame_source;

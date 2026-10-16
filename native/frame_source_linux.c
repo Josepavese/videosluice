@@ -403,7 +403,8 @@ int video_broker_frame_source_nv12_output(video_broker_frame_source *s,const cha
     if(!s->enabled)return 0;
     uint8_t digest[32];
     uint64_t wall_start=diagnostic_now_ns(),cpu_start=diagnostic_cpu_ns();
-    int rc=video_broker_nv12_transform_digest((int)s->definition.width,(int)s->definition.height,
+    int rc=video_broker_nv12_transform_digest_cached(&s->output_transform_cache,
+        (int)s->definition.width,(int)s->definition.height,
         (int)s->definition.stride_y,width,height,(video_broker_video_orientation_t)orientation,
         (video_broker_nv12_aspect_policy_t)aspect_policy,sha,NULL,digest);
     observe_output_phase(s,OUTPUT_TRANSFORM,wall_start,cpu_start);
