@@ -1456,6 +1456,7 @@ func TestVideoBrokerHealthReportsNonInformativeCaptureWithoutBreakingDataPlane(t
 		healthState:     "running",
 		healthChangedAt: now.Add(-time.Second),
 	}
+	rt.refreshQualityObservation(context.Background())
 	health := rt.healthSnapshot(now)
 	if health.State != "running" || health.LastError != "" ||
 		health.OpticalSignalState != "non_informative" ||

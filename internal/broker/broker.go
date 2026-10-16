@@ -351,6 +351,7 @@ type videoBrokerRuntime struct {
 	totalSubDrops             uint64
 	createdAt                 time.Time
 	qualityInputSince         time.Time
+	qualityObservation        brokerQualityObservation
 	healthState               string
 	healthError               string
 	healthChangedAt           time.Time
@@ -839,7 +840,7 @@ func (rt *videoBrokerRuntime) healthSnapshotLocked(now time.Time) videoBrokerHea
 		}
 	}
 	if state == "running" && rt.plan.QualityMonitorEnabled && rt.plan.AnalysisEnabled && strings.TrimSpace(rt.plan.QualityMonitorStatePath) != "" {
-		quality, err := readVideoQualitySignalState(rt.plan, now)
+		quality, err := rt.qualityStateLocked(now)
 		if err != nil {
 			opticalSignalState = "unavailable"
 			opticalSignalReason = err.Error()
@@ -913,16 +914,7 @@ func brokerCameraAdmissionGrace(watchdog, warmup time.Duration) time.Duration {
 	return startupGrace + proofWindow
 }
 
-func readVideoQualitySignalState(plan videoBrokerPlan, now time.Time) (quality.State, error) {
-	path := strings.TrimSpace(plan.QualityMonitorStatePath)
-	data, err := brokerReadFile(path)
-	if err != nil {
-		return quality.State{}, err
-	}
-	state, err := quality.Decode(data)
-	if err != nil {
-		return quality.State{}, fmt.Errorf("invalid state: %w", err)
-	}
+func validateVideoQualitySignalState(plan videoBrokerPlan, state quality.State, now time.Time) (quality.State, error) {
 	reportEvery := plan.QualityMonitorReportEvery
 	if reportEvery <= 0 {
 		reportEvery = 1
@@ -1049,6 +1041,10 @@ func (rt *videoBrokerRuntime) run(ctx context.Context) (runErr error) {
 		rt.subPublicationCancel = cancel
 		rt.mu.Unlock()
 	}
+	// A slow observation file must never own dispatch/status locks. Start only
+	// after listener setup succeeded; retain one source-local reader, including
+	// for roles attached later by routing, until normal context teardown.
+	rt.startGoroutine(func() { rt.observeQuality(ctx) })
 	if rt.plan.ResourceGovernorEnabled {
 		rt.startGoroutine(func() { rt.runResourceGovernor(ctx) })
 	}
