@@ -311,6 +311,10 @@ int observed_timing_gil(void) { return timing_gil; }
         self.assertEqual(source.last, 0)
         self.assertTrue(source._closed)
         self.assertIn("validated_chunk_payload_bytes=96", " ".join(logs.output))
+        text = " ".join(logs.output)
+        for field in ("native_send_us=", "native_descriptor_us=",
+                      "native_payload_receive_us=", "native_integrity_us="):
+            self.assertIn(field, text)
 
     def test_delivery_close_joins_total_deadline_and_does_not_restart_it_per_record(self):
         from test_delivery import records, reader

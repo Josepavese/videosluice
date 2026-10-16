@@ -337,6 +337,29 @@ class DeliveryDiagnostics(unittest.TestCase):
         self.assertTrue(channel.closed)
         self.assertEqual(value.last, 0)
 
+    def test_native_failure_timings_survive_without_private_exception_details(self):
+        failure = TimeoutError("private-native-provider-detail")
+        class TimedChannel(Channel):
+            def read_delivery(self, request, pixels, deadline, progress):
+                progress.native_send_us = 11
+                progress.native_descriptor_us = 22
+                progress.native_payload_receive_us = 33
+                progress.native_integrity_us = 44
+                raise failure
+        channel = TimedChannel()
+        value = reader(channel)
+        with self.assertLogs("video_broker_sdk.delivery", "WARNING") as logs:
+            with self.assertRaises(TimeoutError) as caught:
+                value.read()
+        self.assertIs(caught.exception, failure)
+        text = " ".join(logs.output)
+        for field in ("native_send_us=11", "native_descriptor_us=22",
+                      "native_payload_receive_us=33", "native_integrity_us=44"):
+            self.assertIn(field, text)
+        self.assertNotIn(str(failure), text)
+        self.assertTrue(channel.closed)
+        self.assertEqual(value.last, 0)
+
     def test_idle_and_success_do_not_log_and_failure_counts_only_current_read(self):
         header, pixels, packets = records()
         channel = Channel(packets)

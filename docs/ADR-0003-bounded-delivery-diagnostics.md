@@ -18,3 +18,13 @@ PyGILState_Check inside the timing getter. It fails before the correction and
 passes afterward; the same fixture proves socket receive still releases the GIL.
 Existing full-delivery concurrency, late-return rejection and integrity tests
 remain required. Integrated hardware qualification is separate from this proof.
+
+Delivery failure reports also copy the four existing native stage timings from
+the operation-local progress object. Previously these were collected but lost
+by the outer reader on an exception, making a native wait indistinguishable
+from a delayed Python resumption. These are diagnostic durations, not a new
+acceptance gate: zero can mean an uncompleted or unreached native stage. They
+do not establish a GIL, scheduler, hardware or storage cause on their own. No
+new native call, success log, wire field, deadline or fallback is introduced.
+Tests retain exact failure/cause, channel retirement and private-message hiding,
+and cover the late-return path through the actual authenticated native fixture.
