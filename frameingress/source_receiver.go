@@ -122,6 +122,7 @@ func framePeerCause(err error) string {
 		{peer.ErrUnauthorized, "unauthorized"}, {peer.ErrRetired, "retired"},
 		{peer.ErrInvalid, "invalid"}, {peer.ErrBusy, "busy"},
 		{peer.ErrRecord, "record"}, {peer.ErrNoRecord, "no_record"},
+		{context.DeadlineExceeded, "context_deadline"}, {context.Canceled, "context_canceled"},
 	} {
 		if errors.Is(err, item.err) {
 			return item.name

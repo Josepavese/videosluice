@@ -143,6 +143,9 @@ func (s *FrameSender) writeAuthorized(ctx context.Context, access *Access, packe
 	if err := access.current(); err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return fail("frame_send_consumer_authority_deadline", err)
+	}
 	generation, err := s.writer.CurrentGeneration()
 	if err != nil {
 		return fail("frame_send_peer_unavailable", err)
@@ -150,18 +153,27 @@ func (s *FrameSender) writeAuthorized(ctx context.Context, access *Access, packe
 	if generation != access.generation {
 		return fail("frame_send_peer_mismatch", peer.ErrUnauthorized)
 	}
+	if err := ctx.Err(); err != nil {
+		return fail("frame_send_peer_authority_deadline", err)
+	}
 	*started = true
 	if err := s.writer.WritePacket(ctx, packet); err != nil {
 		return fail("frame_send_write", err)
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return fail("frame_send_write_deadline", err)
 	}
 	generation, err = s.writer.CurrentGeneration()
 	if err != nil || generation != access.generation {
 		return fail("frame_send_peer_changed", peer.ErrRetired)
 	}
-	return access.current()
+	if err := ctx.Err(); err != nil {
+		return fail("frame_send_peer_confirmation_deadline", err)
+	}
+	if err := access.current(); err != nil {
+		return err
+	}
+	return fail("frame_send_consumer_confirmation_deadline", ctx.Err())
 }
 
 // Only FrameSession calls this after authenticated, authorized extraction has

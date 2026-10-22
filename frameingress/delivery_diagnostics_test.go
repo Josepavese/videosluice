@@ -21,6 +21,65 @@ import (
 // that late result BEFORE invoking the consumer, not only in Borrow's epilogue.
 type snapshotCancelAuthority struct{ cancel context.CancelFunc }
 
+type cancelingSenderAuthority struct {
+	cancel                   context.CancelFunc
+	checks, cancelAt, writes int
+}
+
+func (w *cancelingSenderAuthority) CurrentGeneration() (string, error) {
+	w.checks++
+	if w.checks == w.cancelAt {
+		w.cancel()
+	}
+	return "consumer-start-1", nil
+}
+
+func (w *cancelingSenderAuthority) WritePacket(context.Context, []byte) error {
+	w.writes++
+	return nil
+}
+
+func TestDeliverySenderFencesLatePeerAuthorityAtEachWriteBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		cancelAt, wantWrites int
+		stage                string
+	}{
+		{"before_write", 1, 0, "frame_send_peer_authority_deadline"},
+		{"after_write", 2, 1, "frame_send_peer_confirmation_deadline"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, access, _, _ := accessFixture(t)
+			p := deliveryPublication(t, f)
+			h, pixels := publicationFrame(t, f, 7)
+			must(t, p.Publish(context.Background(), h, pixels))
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			writer := &cancelingSenderAuthority{cancel: cancel, cancelAt: tc.cancelAt}
+			sender, err := in.NewFrameSender(context.Background(), f.r, writer, 96, uint64(time.Second))
+			must(t, err)
+			defer closeSender(t, sender)
+			err = sender.SendDelivery(ctx, access, p, nextDelivery(0, 0), true)
+			if !errors.Is(err, context.Canceled) || writer.writes != tc.wantWrites {
+				t.Fatalf("late authority crossed write boundary: writes=%d want=%d err=%v", writer.writes, tc.wantWrites, err)
+			}
+			if !strings.Contains(err.Error(), tc.stage) {
+				t.Fatalf("late authority has no precise checkpoint: %v", err)
+			}
+			if !strings.Contains(err.Error(), "peer_cause=context_canceled") {
+				t.Fatalf("context cancellation classified as an unknown transport failure: %v", err)
+			}
+			before := writer.writes
+			err = sender.SendDelivery(context.Background(), access, p, nextDelivery(0, 0), true)
+			if tc.wantWrites == 0 {
+				must(t, err) // No bytes attempted: the authenticated sender is reusable.
+			} else if !errors.Is(err, peer.ErrRetired) || writer.writes != before {
+				t.Fatalf("partial delivery reused after cancellation: writes=%d err=%v", writer.writes, err)
+			}
+		})
+	}
+}
+
 func (a *snapshotCancelAuthority) CurrentGeneration() (string, error) {
 	if a.cancel != nil {
 		cancel := a.cancel
