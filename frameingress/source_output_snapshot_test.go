@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +47,40 @@ func TestOutputSnapshotsOrderSlotsAndNeverReplay(t *testing.T) {
 	must(t, r.Poll(context.Background(), snapshot, consume))
 	if calls != 2 || r.Stats().Outputs != 2 || r.Stats().Busy != 2 {
 		t.Fatal("old snapshot replayed", calls, r.Stats())
+	}
+}
+
+func TestOutputSnapshotBudgetRetainsNativeStageCause(t *testing.T) {
+	f := setup(t)
+	r, _ := outputSnapshotReceiver(t, f, 25*time.Millisecond)
+	snapshot := sourceSnapshotFunc(func(ctx context.Context, _ int, _ uint64, _ []byte) (int, uint64, error) {
+		<-ctx.Done()
+		return 0, 0, fmt.Errorf("native snapshot stalled: %w", ctx.Err())
+	})
+	err := r.Poll(context.Background(), snapshot, func(context.Context, wire.Header, []byte) error {
+		t.Fatal("incomplete snapshot reached consumer")
+		return nil
+	})
+	if !errors.Is(err, in.ErrOutputPollBudget) || !errors.Is(err, context.DeadlineExceeded) ||
+		!strings.Contains(err.Error(), "native snapshot stalled") ||
+		!strings.Contains(err.Error(), "phase=stage slot=0") || r.Stats().Drops != 1 {
+		t.Fatal("poll deadline discarded its causal stage", err, r.Stats())
+	}
+}
+
+func TestOutputSnapshotExpiredMixedAuthorityFailureRemainsFatal(t *testing.T) {
+	f := setup(t)
+	r, _ := outputSnapshotReceiver(t, f, 25*time.Millisecond)
+	snapshot := sourceSnapshotFunc(func(ctx context.Context, _ int, _ uint64, _ []byte) (int, uint64, error) {
+		<-ctx.Done()
+		return 0, 0, errors.Join(peer.ErrUnauthorized, ctx.Err())
+	})
+	err := r.Poll(context.Background(), snapshot, func(context.Context, wire.Header, []byte) error {
+		t.Fatal("unauthorized snapshot reached consumer")
+		return nil
+	})
+	if errors.Is(err, in.ErrOutputPollBudget) || !errors.Is(err, peer.ErrUnauthorized) || r.Stats().Drops != 0 {
+		t.Fatal("expired structural failure became recoverable pressure", err, r.Stats())
 	}
 }
 

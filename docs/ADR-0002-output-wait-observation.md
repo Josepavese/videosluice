@@ -17,3 +17,16 @@ The diagnostic change is not a stall fix or hardware qualification. A synthetic
 authority delay tests wait attribution together with the independent delivered
 pixel and sequence oracle under address/undefined sanitizers. Hardware evidence
 must locate the wait before selecting a functional correction.
+
+## Preserve complete-snapshot deadline causality
+
+A later qualification expired a complete-output poll while the already
+independent native surface publisher remained regular. The receiver replaced
+its original error with `ErrOutputPollBudget`, losing the provider/resource
+checkpoint needed to locate the wait. Keep the sentinel classification and the
+original error chain together, with the poll phase, slot, elapsed wall time
+and unchanged budget. Format only on failure; no logging, retry, new queue or
+new provider operation enters the healthy path. Mixed structural/deadline
+failures remain structural. A delayed staging fixture proves both deadline
+classification and retained cause; this observability correction alone does
+not establish the cause or repair a historical stall.

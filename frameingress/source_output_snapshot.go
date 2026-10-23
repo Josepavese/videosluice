@@ -3,6 +3,7 @@ package ingress
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -115,10 +116,18 @@ func (r *SourceOutputReceiver) Poll(parent context.Context, snapshot SourceSnaps
 	defer r.operation.Unlock()
 	ctx, cancel := context.WithTimeout(parent, r.budget)
 	defer cancel()
+	started := time.Now()
+	phase, activeSlot := "workspace", -1
 	defer func() {
 		if err != nil && parent.Err() == nil && ctx.Err() == context.DeadlineExceeded && r.current() == nil && outputPressure(err) {
 			r.drops.Add(1)
-			err = ErrOutputPollBudget
+			// Classification must not erase the provider/authority checkpoint:
+			// the sentinel alone cannot distinguish staging from commit stalls.
+			err = fmt.Errorf("%w: %w", ErrOutputPollBudget, err)
+		}
+		if err != nil {
+			err = fmt.Errorf("output_poll_progress phase=%s slot=%d elapsed_us=%d budget_us=%d: %w",
+				phase, activeSlot, time.Since(started).Microseconds(), r.budget.Microseconds(), err)
 		}
 	}()
 	return r.workspace.Borrow(parent, func(resourceCtx context.Context, buffers [2][]byte) error {
@@ -128,12 +137,14 @@ func (r *SourceOutputReceiver) Poll(parent context.Context, snapshot SourceSnaps
 		var used [2]int
 		var serials [2]uint64
 		for slot := range r.last {
+			phase, activeSlot = "stage_authority", slot
 			if err := ctx.Err(); err != nil {
 				return err
 			}
 			if err := r.current(); err != nil {
 				return err
 			}
+			phase = "stage"
 			n, serial, err := snapshot.StageInto(ctx, slot, r.last[slot], buffers[slot])
 			if errors.Is(err, wire.ErrBusy) {
 				r.busy.Add(1)
@@ -142,6 +153,7 @@ func (r *SourceOutputReceiver) Poll(parent context.Context, snapshot SourceSnaps
 			if err != nil {
 				return fail("output_snapshot", err)
 			}
+			phase = "stage_validation"
 			if err := r.current(); err != nil {
 				return err
 			}
@@ -169,6 +181,7 @@ func (r *SourceOutputReceiver) Poll(parent context.Context, snapshot SourceSnaps
 				continue
 			}
 			h := headers[slot]
+			phase, activeSlot = "integrity", slot
 			// The slot was completely staged. Any later pressure consumes it;
 			// new frames can replace it without transport teardown or retries.
 			r.last[slot] = serials[slot]
@@ -183,6 +196,7 @@ func (r *SourceOutputReceiver) Poll(parent context.Context, snapshot SourceSnaps
 			err := ctx.Err()
 			superseded := false
 			if err == nil {
+				phase = "commit"
 				superseded, err = r.ingress.acceptVerifiedSnapshotOutput(ctx, h, payload, consume)
 			}
 			if superseded {
@@ -202,6 +216,7 @@ func (r *SourceOutputReceiver) Poll(parent context.Context, snapshot SourceSnaps
 			}
 			r.outputs.Add(1)
 		}
+		phase, activeSlot = "workspace_release", -1
 		return nil
 	})
 }
