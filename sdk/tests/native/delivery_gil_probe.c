@@ -32,13 +32,23 @@ int delivery_probe_started(void) {
     }
     return 0;
 }
-int delivery_probe_complete_with_gil(void) {
+int delivery_probe_complete_with_gil(int64_t return_not_before) {
     if(!PyGILState_Check())return -2;
     if(atomic_load(&finished))return -3;
     atomic_store(&gate,1);
     int64_t until=probe_now()+INT64_C(500000000);
     while(!atomic_load(&finished)) {
         if(probe_now()>=until)return -1;
+        pause_briefly();
+    }
+    /* Fixture-only interpreter stall AFTER the real authenticated receive
+     * completed. The waiting receiver cannot execute Python during this
+     * interval, but its native completion stamp is already available. */
+    if(return_not_before<0 || return_not_before>probe_now()+INT64_C(1500000000))return -5;
+    for(;;) {
+        int64_t now=probe_now();
+        if(!now)return -6;
+        if(now>=return_not_before)break;
         pause_briefly();
     }
     return PyGILState_Check()?0:-4;

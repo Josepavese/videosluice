@@ -128,13 +128,19 @@ int observed_boundary_gil(void) { return boundary_gil; }
         self.assertGreaterEqual(progress.native_resume_gap_us,0)
 
     def test_complete_delivery_advances_while_python_gil_is_held(self):
+        self._complete_delivery_with_held_interpreter(late_return=False)
+
+    def test_native_boundary_distinguishes_real_held_interpreter_after_completion(self):
+        self._complete_delivery_with_held_interpreter(late_return=True)
+
+    def _complete_delivery_with_held_interpreter(self, *, late_return):
         from concurrent.futures import ThreadPoolExecutor
         from dataclasses import replace
         from test_delivery import records
         from video_broker_sdk.causal_envelope import marshal_header
         root = Path(__file__).resolve().parents[2]
         native = root/"framepeer/provider/linux/native"
-        self.library = str(Path(self.temporary.name)/"libdelivery_gil_probe.so")
+        self.library = str(Path(self.temporary.name)/f"libdelivery_gil_probe_{late_return}.so")
         subprocess.run(["cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
             "-fPIC", "-shared", "-I"+str(native), "-I"+str(root/"framepeer/native"),
             "-I"+str(root/"native"), str(Path(__file__).parent/"native/delivery_gil_probe.c"),
@@ -161,16 +167,28 @@ int observed_boundary_gil(void) { return boundary_gil; }
         lib.delivery_probe_produce.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_size_t]
         request = b"FAPN\1\0\0\0"+struct.pack(">2Q", header.publication_epoch, 0)
         output, progress = bytearray(len(pixels)), DeliveryProgress()
+        deadline = time.monotonic()+1
         with ThreadPoolExecutor(max_workers=2) as pool:
             send = pool.submit(lib.delivery_probe_produce, writer.fileno(), ctypes.c_char_p(wire), len(wire))
-            read = pool.submit(value.read_delivery, request, output, time.monotonic()+1, progress)
+            read = pool.submit(value.read_delivery, request, output, deadline, progress)
             self.assertEqual(lib.delivery_probe_started(), 0)
             # Release producer only INSIDE the GIL-held call; completion cannot
             # be a frame that arrived before the blocked-interpreter interval.
             held = ctypes.PyDLL(self.library)
-            self.assertEqual(held.delivery_probe_complete_with_gil(), 0)
+            held.delivery_probe_complete_with_gil.argtypes = [ctypes.c_int64]
+            resume_at = int((deadline+.05)*1_000_000_000) if late_return else 0
+            self.assertEqual(held.delivery_probe_complete_with_gil(resume_at), 0)
             self.assertEqual(send.result(timeout=2), 0)
-            self.assertEqual(read.result(timeout=2), (b"", raw, header.payload_sha, len(pixels)))
+            if late_return:
+                with self.assertRaisesRegex(TimeoutError,"delivery transaction total deadline expired"):
+                    read.result(timeout=2)
+                # Real native exchange completed successfully before its own
+                # deadline; only the actual interpreter-held return is late.
+                self.assertGreaterEqual(progress.native_call_us,0)
+                self.assertGreaterEqual(progress.native_resume_gap_us,40_000)
+                self.assertLess(progress.native_call_us,progress.native_resume_gap_us)
+            else:
+                self.assertEqual(read.result(timeout=2), (b"", raw, header.payload_sha, len(pixels)))
         self.assertEqual(output, pixels)
         progress.payload.validate_complete(len(pixels))
 

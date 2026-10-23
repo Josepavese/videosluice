@@ -44,3 +44,11 @@ interpreter acquisition: it is **not** a measured GIL wait or a proven storage
 cause. The existing delayed-return fixture distinguishes this gap while still
 rejecting the late frame, leaving the delivery cursor unchanged and retiring
 the channel. This source diagnostic is separate from installed hardware proof.
+
+An additional authenticated 640x360 fixture holds the actual CPython interpreter
+inside a native PyDLL call after the receiving thread has completed its real
+exchange. Keeping that hold past the original deadline produces a positive
+native-to-Python gap and rejects the result; releasing immediately succeeds.
+Unlike a Python sleep wrapper, this exercises genuine interpreter exclusion.
+It establishes discrimination for a controlled cause, not the cause of an
+earlier device incident. No runtime gate or installed code changes for this test.
