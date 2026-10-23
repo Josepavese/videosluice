@@ -88,14 +88,21 @@ int framepeer_linux_receive(framepeer_linux_launch *state, uint8_t *data,
 int observed_current_gil(void) { return current_gil; }
 int observed_receive_gil(void) { return receive_gil; }
 #define video_broker_frame_delivery_last_timing real_last_timing
+#define video_broker_frame_delivery_last_boundary real_last_boundary
 #include "frame_peer_python.c"
 #undef video_broker_frame_delivery_last_timing
-static int timing_gil = -1;
+#undef video_broker_frame_delivery_last_boundary
+static int timing_gil = -1, boundary_gil = -1;
 int video_broker_frame_delivery_last_timing(uint64_t *out, size_t count) {
     timing_gil = PyGILState_Check();
     return real_last_timing(out,count);
 }
 int observed_timing_gil(void) { return timing_gil; }
+int video_broker_frame_delivery_last_boundary(uint64_t *entered, uint64_t *completed) {
+    boundary_gil = PyGILState_Check();
+    return real_last_boundary(entered,completed);
+}
+int observed_boundary_gil(void) { return boundary_gil; }
 """)
         self.library = str(Path(self.temporary.name) / "libgil_probe.so")
         subprocess.run(["cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
@@ -109,13 +116,16 @@ int observed_timing_gil(void) { return timing_gil; }
         self.assertEqual(value.receive(32, time.monotonic()+1), b"record")
         self.assertEqual(value._lib.observed_receive_gil(), 0)
         # Real idle transaction, including the production finally block. Its
-        # fixed 32-byte diagnostic copy must not yield behind native inference.
+        # Fixed-size stage/boundary copies must not yield behind inference.
         request = b"FAPN\1\0\0\0"+struct.pack(">2Q", 7, 9)
         idle = b"FAPI\1\0\0\0"+struct.pack(">2Q", 7, 9)
         writer.send(idle)
         progress = DeliveryProgress()
         self.assertEqual(value.read_delivery(request,bytearray(4),time.monotonic()+1,progress)[1],idle)
         self.assertEqual(value._lib.observed_timing_gil(),1)
+        self.assertEqual(value._lib.observed_boundary_gil(),1)
+        self.assertGreaterEqual(progress.native_call_us,0)
+        self.assertGreaterEqual(progress.native_resume_gap_us,0)
 
     def test_complete_delivery_advances_while_python_gil_is_held(self):
         from concurrent.futures import ThreadPoolExecutor
@@ -163,6 +173,32 @@ int observed_timing_gil(void) { return timing_gil; }
             self.assertEqual(read.result(timeout=2), (b"", raw, header.payload_sha, len(pixels)))
         self.assertEqual(output, pixels)
         progress.payload.validate_complete(len(pixels))
+
+    def test_missing_native_boundary_contract_fails_before_attachment(self):
+        root = Path(__file__).resolve().parents[2]
+        native = root/"framepeer/provider/linux/native"
+        probe = Path(self.temporary.name)/"missing_boundary.c"
+        probe.write_text('#define video_broker_frame_delivery_last_boundary absent_boundary\n'
+                         '#include "frame_peer_python.c"\n')
+        library = str(Path(self.temporary.name)/"libmissing_boundary.so")
+        subprocess.run(["cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
+            "-I"+str(native), "-I"+str(root/"framepeer/native"), "-I"+str(root/"native"),
+            str(probe), str(native/"launch.c"), "-o", library, "-lcrypto", "-pthread"],
+            check=True, capture_output=True, timeout=30)
+        with self.assertRaisesRegex(AttributeError,"video_broker_frame_delivery_last_boundary"):
+            LinuxPacketChannel(ctypes.CDLL(library))
+
+    def test_native_boundary_contract_sanitized_thread_lifetime(self):
+        root = Path(__file__).resolve().parents[2]
+        native = root/"framepeer/provider/linux/native"
+        executable = str(Path(self.temporary.name)/"delivery_boundary_test")
+        compiled = subprocess.run(["cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
+            "-fsanitize=address,undefined", "-fno-omit-frame-pointer", "-fno-pie", "-no-pie",
+            "-I"+str(native), "-I"+str(root/"framepeer/native"), "-I"+str(root/"native"),
+            str(Path(__file__).parent/"native/delivery_boundary_test.c"), str(native/"launch.c"),
+            "-o", executable, "-lcrypto", "-pthread"],capture_output=True,timeout=30)
+        self.assertEqual(compiled.returncode,0,compiled.stderr.decode(errors="replace"))
+        subprocess.run([executable],check=True,capture_output=True,timeout=10)
 
     def test_delivery_transaction_initial_subsequent_and_idle(self):
         from test_delivery import records
@@ -220,6 +256,9 @@ int observed_timing_gil(void) { return timing_gil; }
         self.assertGreaterEqual(progress.native_payload_receive_us, 15_000)
         self.assertGreaterEqual(progress.native_send_us, 0)
         self.assertGreaterEqual(progress.native_integrity_us, 0)
+        self.assertGreaterEqual(progress.native_call_us, sum((progress.native_send_us,
+            progress.native_descriptor_us,progress.native_payload_receive_us,progress.native_integrity_us)))
+        self.assertGreaterEqual(progress.native_resume_gap_us,0)
 
     def test_delivery_transaction_rejects_over_admission_and_corrupt_pixels(self):
         from test_delivery import records
@@ -237,6 +276,8 @@ int observed_timing_gil(void) { return timing_gil; }
                     value.read_delivery(request, pixels, time.monotonic()+1, progress)
                 self.assertEqual(failure.exception.code, -6)
                 self.assertEqual(progress.declared_payload_bytes, 96)
+                self.assertGreaterEqual(progress.native_call_us,0)
+                self.assertGreaterEqual(progress.native_resume_gap_us,0)
                 if not corrupt:
                     self.assertEqual(pixels, b"?"*maximum)
                     self.assertEqual(progress.payload.received_records, 0)
@@ -313,8 +354,12 @@ int observed_timing_gil(void) { return timing_gil; }
         self.assertIn("validated_chunk_payload_bytes=96", " ".join(logs.output))
         text = " ".join(logs.output)
         for field in ("native_send_us=", "native_descriptor_us=",
-                      "native_payload_receive_us=", "native_integrity_us="):
+                      "native_payload_receive_us=", "native_integrity_us=",
+                      "native_call_us=", "native_resume_gap_us="):
             self.assertIn(field, text)
+        measured = dict(word.split("=",1) for word in text.split() if "=" in word)
+        self.assertGreaterEqual(int(measured['native_call_us']),0)
+        self.assertGreaterEqual(int(measured['native_resume_gap_us']),40_000)
 
     def test_delivery_close_joins_total_deadline_and_does_not_restart_it_per_record(self):
         from test_delivery import records, reader

@@ -345,6 +345,8 @@ class DeliveryDiagnostics(unittest.TestCase):
                 progress.native_descriptor_us = 22
                 progress.native_payload_receive_us = 33
                 progress.native_integrity_us = 44
+                progress.native_call_us = 111
+                progress.native_resume_gap_us = 222
                 raise failure
         channel = TimedChannel()
         value = reader(channel)
@@ -354,7 +356,8 @@ class DeliveryDiagnostics(unittest.TestCase):
         self.assertIs(caught.exception, failure)
         text = " ".join(logs.output)
         for field in ("native_send_us=11", "native_descriptor_us=22",
-                      "native_payload_receive_us=33", "native_integrity_us=44"):
+                      "native_payload_receive_us=33", "native_integrity_us=44",
+                      "native_call_us=111", "native_resume_gap_us=222"):
             self.assertIn(field, text)
         self.assertNotIn(str(failure), text)
         self.assertTrue(channel.closed)

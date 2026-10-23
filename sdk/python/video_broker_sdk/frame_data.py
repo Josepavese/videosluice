@@ -32,3 +32,7 @@ class DeliveryProgress:
     native_descriptor_us: int = 0
     native_payload_receive_us: int = 0
     native_integrity_us: int = 0
+    # Native entry/completion and completion-to-Python spans. A negative value
+    # means unavailable, never zero wait. The latter is NOT a measured GIL wait.
+    native_call_us: int = -1
+    native_resume_gap_us: int = -1

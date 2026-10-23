@@ -51,6 +51,8 @@ class _ReadProgress:
     native_descriptor_us: int = 0
     native_payload_receive_us: int = 0
     native_integrity_us: int = 0
+    native_call_us: int = -1
+    native_resume_gap_us: int = -1
 
     def failure(self, reader, error):
         now = time.monotonic()
@@ -69,6 +71,7 @@ class _ReadProgress:
             "elapsed_us=%d budget_us=%d transaction_us=%d header_validation_us=%d "
             "allocation_us=%d allocation_thread_cpu_us=%d integrity_us=%d "
             "native_send_us=%d native_descriptor_us=%d native_payload_receive_us=%d native_integrity_us=%d "
+            "native_call_us=%d native_resume_gap_us=%d "
             "authority_checks=%d authority_us=%d authority_max_us=%d "
             "thread_cpu_us=%d reason=%s",
             self.phase, self.response_record, publication.source_epoch if publication else 0,
@@ -83,6 +86,7 @@ class _ReadProgress:
             elapsed(self.integrity_started, self.integrity_finished),
             self.native_send_us, self.native_descriptor_us,
             self.native_payload_receive_us, self.native_integrity_us,
+            self.native_call_us, self.native_resume_gap_us,
             self.authority_checks, self.authority_us, self.authority_max_us,
             max(0, (cpu_now_ns-self.cpu_started_ns)//1000), type(error).__name__)
 
@@ -204,6 +208,8 @@ class DeliveryReader:
                 progress.native_descriptor_us = transaction.native_descriptor_us
                 progress.native_payload_receive_us = transaction.native_payload_receive_us
                 progress.native_integrity_us = transaction.native_integrity_us
+                progress.native_call_us = transaction.native_call_us
+                progress.native_resume_gap_us = transaction.native_resume_gap_us
                 progress.response_record = ("frame_header" if transaction.declared_payload_bytes else
                     "idle_record" if transaction.header_bytes == 24 else "unread")
             self._current(deadline, progress)

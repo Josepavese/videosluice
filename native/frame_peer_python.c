@@ -31,11 +31,14 @@ static int data_failure(framepeer_linux_launch *state, const char *stage, int co
  * bytes, global lock or logging are retained. The Python caller reads these
  * immediately on the same worker thread, including after a native failure. */
 static _Thread_local uint64_t delivery_timing_us[4];
-static uint64_t monotonic_us(void) {
+static _Thread_local uint64_t delivery_entered_ns, delivery_completed_ns;
+static uint64_t monotonic_ns(void) {
     struct timespec now;
-    if(clock_gettime(CLOCK_MONOTONIC,&now) || now.tv_sec<0) return 0;
-    return (uint64_t)now.tv_sec*UINT64_C(1000000)+(uint64_t)now.tv_nsec/1000;
+    if(clock_gettime(CLOCK_MONOTONIC,&now) || now.tv_sec<0 ||
+       (uint64_t)now.tv_sec>(UINT64_MAX-(uint64_t)now.tv_nsec)/UINT64_C(1000000000)) return 0;
+    return (uint64_t)now.tv_sec*UINT64_C(1000000000)+(uint64_t)now.tv_nsec;
 }
+static uint64_t monotonic_us(void) { return monotonic_ns()/1000; }
 static uint64_t elapsed_us(uint64_t started) {
     uint64_t finished=monotonic_us();
     return started && finished>=started ? finished-started : 0;
@@ -43,6 +46,12 @@ static uint64_t elapsed_us(uint64_t started) {
 int video_broker_frame_delivery_last_timing(uint64_t *out, size_t count) {
     if(!out || count!=4) return -1;
     memcpy(out,delivery_timing_us,sizeof(delivery_timing_us));
+    return 0;
+}
+int video_broker_frame_delivery_last_boundary(uint64_t *entered_ns, uint64_t *completed_ns) {
+    if(!entered_ns || !completed_ns) return -1;
+    *entered_ns=delivery_entered_ns;
+    *completed_ns=delivery_completed_ns;
     return 0;
 }
 
@@ -116,11 +125,10 @@ int video_broker_frame_data_receive_sha256(framepeer_linux_launch *state, uint8_
  * unvalidated descriptor to the already reserved output and total deadline.
  * counters: payload records/wire/validated bytes, metadata/header extents,
  * declared payload bytes. Failure leaves no usable digest or committed frame. */
-int video_broker_frame_delivery_receive_sha256(framepeer_linux_launch *state,
+static int delivery_receive_sha256(framepeer_linux_launch *state,
         uint8_t *scratch,size_t scratch_size,const uint8_t *request,size_t request_size,
         uint8_t *metadata,size_t metadata_capacity,uint8_t *header,size_t header_capacity,
         uint8_t *output,size_t maximum,int64_t until,uint64_t *counters,uint8_t *payload_sha) {
-    memset(delivery_timing_us,0,sizeof(delivery_timing_us));
     if(counters) memset(counters,0,6*sizeof(*counters));
     if(payload_sha) memset(payload_sha,0,32);
     if(!state || !scratch || scratch_size!=16384 || !request || request_size!=24 ||
@@ -175,4 +183,21 @@ int video_broker_frame_delivery_receive_sha256(framepeer_linux_launch *state,
         return data_failure(state,"delivery_payload_integrity",FRAMEPEER_RECORD);
     }
     return 0;
+}
+
+/* Capture both sides inside C, including every early return. The consumer
+ * compares completion with its first Python timestamp, not with another
+ * foreign call which could itself yield the GIL. This gap is diagnostic:
+ * scheduling, interpreter acquisition and return code are not distinguished. */
+int video_broker_frame_delivery_receive_sha256(framepeer_linux_launch *state,
+        uint8_t *scratch,size_t scratch_size,const uint8_t *request,size_t request_size,
+        uint8_t *metadata,size_t metadata_capacity,uint8_t *header,size_t header_capacity,
+        uint8_t *output,size_t maximum,int64_t until,uint64_t *counters,uint8_t *payload_sha) {
+    memset(delivery_timing_us,0,sizeof(delivery_timing_us));
+    delivery_completed_ns=0;
+    delivery_entered_ns=monotonic_ns();
+    int rc=delivery_receive_sha256(state,scratch,scratch_size,request,request_size,
+        metadata,metadata_capacity,header,header_capacity,output,maximum,until,counters,payload_sha);
+    delivery_completed_ns=monotonic_ns();
+    return rc;
 }

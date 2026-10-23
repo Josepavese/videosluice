@@ -25,6 +25,22 @@ by the outer reader on an exception, making a native wait indistinguishable
 from a delayed Python resumption. These are diagnostic durations, not a new
 acceptance gate: zero can mean an uncompleted or unreached native stage. They
 do not establish a GIL, scheduler, hardware or storage cause on their own. No
-new native call, success log, wire field, deadline or fallback is introduced.
+success log, wire field, deadline or fallback is introduced by that projection.
 Tests retain exact failure/cause, channel retirement and private-message hiding,
 and cover the late-return path through the actual authenticated native fixture.
+
+Stage durations do not cover the entire native call or its return to Python.
+The native delivery entrypoint now records entry/completion monotonic timestamps
+on every return, including errors, in two additional thread-local integers
+(16 bytes per receiving thread, no heap or queue). A second bounded getter
+copies this boundary through PYFUNCTYPE. Both getters are current diagnostics,
+not compatibility alternatives; the Python adapter requires the matching helper
+before consuming any launch descriptor, with no fallback to an older ABI.
+
+The adapter derives `native_call_us` and `native_resume_gap_us` from these stamps
+and its first timestamp after the foreign call. Unavailable measurements stay
+`-1`, not zero. The latter gap includes native return code, scheduling and
+interpreter acquisition: it is **not** a measured GIL wait or a proven storage
+cause. The existing delayed-return fixture distinguishes this gap while still
+rejecting the late frame, leaving the delivery cursor unchanged and retiring
+the channel. This source diagnostic is separate from installed hardware proof.

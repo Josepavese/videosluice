@@ -51,6 +51,7 @@ class LinuxPacketChannel:
                 c.c_void_p, c.c_size_t, c.c_void_p, c.c_size_t, c.c_void_p, c.c_size_t,
                 c.c_void_p, c.c_size_t, c.c_int64, c.POINTER(c.c_uint64), c.c_void_p], c.c_int),
             "video_broker_frame_delivery_last_timing": ([c.POINTER(c.c_uint64), c.c_size_t], c.c_int),
+            "video_broker_frame_delivery_last_boundary": ([c.POINTER(c.c_uint64), c.POINTER(c.c_uint64)], c.c_int),
         }
         for name, (args, result) in signatures.items():
             function = getattr(library, name)
@@ -76,6 +77,9 @@ class LinuxPacketChannel:
         self._bounded_last_timing = c.PYFUNCTYPE(
             c.c_int, c.POINTER(c.c_uint64), c.c_size_t)(
                 ("video_broker_frame_delivery_last_timing", library))
+        self._bounded_last_boundary = c.PYFUNCTYPE(
+            c.c_int, c.POINTER(c.c_uint64), c.POINTER(c.c_uint64))(
+                ("video_broker_frame_delivery_last_boundary", library))
         size = int(library.video_broker_frame_peer_state_bytes())
         if not 0 < size <= 1024:
             raise Invalid("frame peer native state size")
@@ -255,10 +259,13 @@ class LinuxPacketChannel:
             output = (c.c_ubyte*len(pixels)).from_buffer(pixels)
             metadata, header = (c.c_ubyte*512)(), (c.c_ubyte*448)()
             counters, payload_sha = (c.c_uint64*6)(), (c.c_ubyte*32)()
+            native_returned_ns = None
             try:
-                self._check(self._lib.video_broker_frame_delivery_receive_sha256(
+                result = self._lib.video_broker_frame_delivery_receive_sha256(
                     self._state, self._buffer, self.MAX_PACKET, c.c_char_p(request), len(request),
-                    metadata, 512, header, 448, output, len(pixels), until, counters, payload_sha))
+                    metadata, 512, header, 448, output, len(pixels), until, counters, payload_sha)
+                native_returned_ns = time.monotonic_ns()
+                self._check(result)
                 if time.monotonic() >= deadline:
                     raise TimeoutError("delivery transaction total deadline expired")
                 self._current()
@@ -274,6 +281,12 @@ class LinuxPacketChannel:
                     (progress.native_send_us, progress.native_descriptor_us,
                      progress.native_payload_receive_us, progress.native_integrity_us) = (
                         int(value) for value in timings)
+                entered_ns, completed_ns = c.c_uint64(), c.c_uint64()
+                if self._bounded_last_boundary(c.byref(entered_ns), c.byref(completed_ns)) == 0:
+                    if entered_ns.value > 0 and completed_ns.value >= entered_ns.value:
+                        progress.native_call_us = (completed_ns.value-entered_ns.value)//1000
+                        if native_returned_ns is not None and native_returned_ns >= completed_ns.value:
+                            progress.native_resume_gap_us = (native_returned_ns-completed_ns.value)//1000
                 progress.payload.received_records = int(counters[0])
                 progress.payload.received_wire_bytes = int(counters[1])
                 progress.payload.validated_payload_bytes = int(counters[2])
