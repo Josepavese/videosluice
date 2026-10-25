@@ -38,3 +38,18 @@ one-time verified conversion/export, not indefinite dual readers. Rollback keeps
 an immutable previous asset; installer upgrades never erase mutable state.
 Embedding platforms own hardware reset, service supervision and deployment
 transactions; the broker owns only source/media workers and bounded recovery.
+
+## Changes originating in embedding applications
+
+An embedding application's materialized copy may serve as an integration/test
+bench, but must not become a maintained fork or downstream patch set. Bring
+framework corrections back to this repository within the same work batch and
+distribute the resulting immutable release through the consumer's dependency
+pin. Preserve experimental provenance until reconciliation is verified.
+
+Every accepted correction must demonstrate concrete general product utility:
+describe its problem, contract and regression without depending on the originating
+application. Preserve this repository's architecture and public boundaries;
+renaming application-specific structures or adding speculative abstractions
+does not generalize a change. Application configuration, models, identities,
+supervision and domain policy remain in their owner and use the public contracts.
