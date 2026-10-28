@@ -13,6 +13,11 @@ static void record_invalid_delivery(uint64_t *pair) {
     assert(pair[0]>0 && pair[1]>=pair[0]);
     for(size_t i=0;i<6;i++) assert(counters[i]==0);
     for(size_t i=0;i<32;i++) assert(sha[i]==0);
+    uint64_t authority[4];
+    assert(video_broker_frame_peer_current_timed(NULL,NULL)==FRAMEPEER_INVALID);
+    assert(video_broker_frame_peer_current_timed(NULL,authority)==FRAMEPEER_INVALID);
+    assert(authority[0]>0 && authority[1]>=authority[0]);
+    assert(authority[2]>0 && authority[3]>=authority[2]);
 }
 
 static void *worker(void *argument) {

@@ -43,6 +43,23 @@ static uint64_t elapsed_us(uint64_t started) {
     uint64_t finished=monotonic_us();
     return started && finished>=started ? finished-started : 0;
 }
+/* Boundaries of the existing nonblocking authority operation, in caller-owned
+ * storage. Keep it under the interpreter lock; unlike IO it must never yield
+ * merely to copy diagnostics. Zero stamps mean unavailable, not zero latency. */
+int video_broker_frame_peer_current_timed(framepeer_linux_launch *state,
+                                         uint64_t boundary[4]) {
+    struct timespec cpu;
+    if(!boundary) return FRAMEPEER_INVALID;
+    memset(boundary,0,4*sizeof(*boundary));
+    boundary[0]=monotonic_ns();
+    if(!clock_gettime(CLOCK_THREAD_CPUTIME_ID,&cpu))
+        boundary[2]=(uint64_t)cpu.tv_sec*UINT64_C(1000000000)+(uint64_t)cpu.tv_nsec;
+    int result=framepeer_linux_current(state);
+    if(!clock_gettime(CLOCK_THREAD_CPUTIME_ID,&cpu))
+        boundary[3]=(uint64_t)cpu.tv_sec*UINT64_C(1000000000)+(uint64_t)cpu.tv_nsec;
+    boundary[1]=monotonic_ns();
+    return result;
+}
 int video_broker_frame_delivery_last_timing(uint64_t *out, size_t count) {
     if(!out || count!=4) return -1;
     memcpy(out,delivery_timing_us,sizeof(delivery_timing_us));

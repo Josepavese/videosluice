@@ -47,12 +47,7 @@ class _ReadProgress:
     allocation_cpu_finished_ns: int | None = None
     integrity_started: float | None = None
     integrity_finished: float | None = None
-    native_send_us: int = 0
-    native_descriptor_us: int = 0
-    native_payload_receive_us: int = 0
-    native_integrity_us: int = 0
-    native_call_us: int = -1
-    native_resume_gap_us: int = -1
+    transaction: DeliveryProgress | None = None
 
     def failure(self, reader, error):
         now = time.monotonic()
@@ -63,6 +58,7 @@ class _ReadProgress:
             0, ((cpu_now_ns if self.allocation_cpu_finished_ns is None else self.allocation_cpu_finished_ns)
                 - self.allocation_cpu_started_ns)//1000)
         publication = reader.publication
+        transaction = self.transaction or DeliveryProgress()
         _LOG.warning(
             "delivery_read_progress phase=%s response_record=%s source_epoch=%d publication_epoch=%d "
             "last_delivery_id=%d attempted_delivery_id=%d received_records=%d "
@@ -72,6 +68,8 @@ class _ReadProgress:
             "allocation_us=%d allocation_thread_cpu_us=%d integrity_us=%d "
             "native_send_us=%d native_descriptor_us=%d native_payload_receive_us=%d native_integrity_us=%d "
             "native_call_us=%d native_resume_gap_us=%d "
+            "channel_phase=%s channel_failure_us=%d channel_diagnostics_us=%d "
+            "native_authority_call_us=%d native_authority_cpu_us=%d native_authority_resume_gap_us=%d "
             "authority_checks=%d authority_us=%d authority_max_us=%d "
             "thread_cpu_us=%d reason=%s",
             self.phase, self.response_record, publication.source_epoch if publication else 0,
@@ -84,9 +82,12 @@ class _ReadProgress:
             elapsed(self.header_validation_started, self.header_validation_finished),
             elapsed(self.allocation_started, self.allocation_finished), allocation_cpu_us,
             elapsed(self.integrity_started, self.integrity_finished),
-            self.native_send_us, self.native_descriptor_us,
-            self.native_payload_receive_us, self.native_integrity_us,
-            self.native_call_us, self.native_resume_gap_us,
+            transaction.native_send_us, transaction.native_descriptor_us,
+            transaction.native_payload_receive_us, transaction.native_integrity_us,
+            transaction.native_call_us, transaction.native_resume_gap_us,
+            transaction.channel_phase, transaction.channel_failure_us, transaction.channel_diagnostics_us,
+            transaction.native_authority_call_us, transaction.native_authority_cpu_us,
+            transaction.native_authority_resume_gap_us,
             self.authority_checks, self.authority_us, self.authority_max_us,
             max(0, (cpu_now_ns-self.cpu_started_ns)//1000), type(error).__name__)
 
@@ -192,6 +193,7 @@ class DeliveryReader:
             if progress.allocation_finished >= deadline:
                 raise TimeoutError("delivery total deadline exceeded")
             transaction = DeliveryProgress()
+            progress.transaction = transaction
             progress.phase, progress.transaction_started = "frame_transaction", time.monotonic()
             try:
                 metadata, packet, payload_sha, size = self.channel.read_delivery(
@@ -204,12 +206,6 @@ class DeliveryReader:
                     + transaction.metadata_bytes + transaction.header_bytes)
                 progress.validated_chunk_payload_bytes = transaction.payload.validated_payload_bytes
                 progress.declared_payload_bytes = transaction.declared_payload_bytes
-                progress.native_send_us = transaction.native_send_us
-                progress.native_descriptor_us = transaction.native_descriptor_us
-                progress.native_payload_receive_us = transaction.native_payload_receive_us
-                progress.native_integrity_us = transaction.native_integrity_us
-                progress.native_call_us = transaction.native_call_us
-                progress.native_resume_gap_us = transaction.native_resume_gap_us
                 progress.response_record = ("frame_header" if transaction.declared_payload_bytes else
                     "idle_record" if transaction.header_bytes == 24 else "unread")
             self._current(deadline, progress)

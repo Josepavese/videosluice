@@ -39,6 +39,7 @@ class LinuxPacketChannel:
             "video_broker_frame_peer_stage": ([c.c_void_p], c.c_char_p),
             "framepeer_linux_accept": ([c.c_void_p, c.c_int, c.c_int, c.c_void_p, c.c_size_t, c.c_int], c.c_int),
             "framepeer_linux_current": ([c.c_void_p], c.c_int),
+            "video_broker_frame_peer_current_timed": ([c.c_void_p, c.POINTER(c.c_uint64)], c.c_int),
             "framepeer_linux_receive": ([c.c_void_p, c.c_void_p, c.c_size_t, c.POINTER(c.c_size_t), c.c_int], c.c_int),
             "framepeer_linux_send": ([c.c_void_p, c.c_void_p, c.c_size_t, c.c_int], c.c_int),
             "framepeer_linux_close": ([c.c_void_p], c.c_int),
@@ -69,8 +70,8 @@ class LinuxPacketChannel:
         # here can turn a microsecond authority check into a wait behind an
         # unrelated native inference. Keep it only for this bounded check;
         # socket waits, payload transfer, bootstrap and close still release it.
-        self._bounded_current = c.PYFUNCTYPE(c.c_int, c.c_void_p)(
-            ("framepeer_linux_current", library))
+        self._bounded_current = c.PYFUNCTYPE(c.c_int, c.c_void_p, c.POINTER(c.c_uint64))(
+            ("video_broker_frame_peer_current_timed", library))
         # The getter copies four thread-local counters, with no locks, IO or
         # allocation. Releasing the GIL here can delay a completed transaction
         # behind unrelated inference AFTER its native deadline checks passed.
@@ -110,10 +111,21 @@ class LinuxPacketChannel:
                                                         c.c_char_p(metadata), len(metadata), timeout_ms))
             self._accepted = True
 
-    def _current(self) -> None:
+    def _current(self, progress: DeliveryProgress | None = None) -> None:
         if not self._accepted or self._closed:
             raise PeerError(-4, "closed_or_not_accepted")
-        self._check(self._bounded_current(self._state))
+        boundary = (c.c_uint64*4)()
+        result = self._bounded_current(self._state, boundary)
+        resumed_ns = time.monotonic_ns()
+        if progress is not None:
+            entered, completed, cpu_entered, cpu_completed = boundary
+            if entered > 0 and completed >= entered:
+                progress.native_authority_call_us = (completed-entered)//1000
+                if resumed_ns >= completed:
+                    progress.native_authority_resume_gap_us = (resumed_ns-completed)//1000
+            if cpu_entered > 0 and cpu_completed >= cpu_entered:
+                progress.native_authority_cpu_us = (cpu_completed-cpu_entered)//1000
+        self._check(result)
 
     def connect(self, path: str, controller_fd: int, metadata: bytes, *, timeout_ms: int) -> None:
         """Attach to the broker pinned by an inherited supervisor capability.
@@ -244,6 +256,7 @@ class LinuxPacketChannel:
         must validate both returned descriptors before exposing these bytes.
         The exclusive output is already admitted; no queue or extra frame exists.
         """
+        started_ns = time.monotonic_ns()
         if (type(request) is not bytes or len(request) != 24
                 or type(pixels) is not bytearray or not 0 < len(pixels) <= MAX_PAYLOAD
                 or type(progress) is not DeliveryProgress):
@@ -255,27 +268,36 @@ class LinuxPacketChannel:
         if not 0 < until < 2**63:
             raise Invalid("delivery transaction deadline extent")
         with self._lock:
-            self._current()
+            progress.channel_phase = "pre_receive_authority"
+            self._current(progress)
             output = (c.c_ubyte*len(pixels)).from_buffer(pixels)
             metadata, header = (c.c_ubyte*512)(), (c.c_ubyte*448)()
             counters, payload_sha = (c.c_uint64*6)(), (c.c_ubyte*32)()
             native_returned_ns = None
             try:
+                progress.channel_phase = "native_receive"
                 result = self._lib.video_broker_frame_delivery_receive_sha256(
                     self._state, self._buffer, self.MAX_PACKET, c.c_char_p(request), len(request),
                     metadata, 512, header, 448, output, len(pixels), until, counters, payload_sha)
                 native_returned_ns = time.monotonic_ns()
+                progress.channel_phase = "native_result"
                 self._check(result)
+                progress.channel_phase = "post_receive_deadline"
                 if time.monotonic() >= deadline:
                     raise TimeoutError("delivery transaction total deadline expired")
-                self._current()
+                progress.channel_phase = "post_receive_authority"
+                self._current(progress)
                 if time.monotonic() >= deadline:
                     raise TimeoutError("delivery transaction total deadline expired")
                 if counters[3] > 512 or counters[4] > 448 or counters[5] > len(pixels):
                     raise Invalid("delivery transaction native extent")
                 return (c.string_at(metadata, counters[3]), c.string_at(header, counters[4]),
                         bytes(payload_sha), int(counters[5]))
+            except BaseException:
+                progress.channel_failure_us = (time.monotonic_ns()-started_ns)//1000
+                raise
             finally:
+                diagnostics_started_ns = time.monotonic_ns()
                 timings = (c.c_uint64*4)()
                 if self._bounded_last_timing(timings, 4) == 0:
                     (progress.native_send_us, progress.native_descriptor_us,
@@ -293,6 +315,7 @@ class LinuxPacketChannel:
                 progress.metadata_bytes = int(counters[3])
                 progress.header_bytes = int(counters[4])
                 progress.declared_payload_bytes = int(counters[5])
+                progress.channel_diagnostics_us = (time.monotonic_ns()-diagnostics_started_ns)//1000
 
     def close(self) -> None:
         with self._lock:

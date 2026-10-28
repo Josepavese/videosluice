@@ -196,15 +196,16 @@ int observed_boundary_gil(void) { return boundary_gil; }
         root = Path(__file__).resolve().parents[2]
         native = root/"framepeer/provider/linux/native"
         probe = Path(self.temporary.name)/"missing_boundary.c"
-        probe.write_text('#define video_broker_frame_delivery_last_boundary absent_boundary\n'
-                         '#include "frame_peer_python.c"\n')
-        library = str(Path(self.temporary.name)/"libmissing_boundary.so")
-        subprocess.run(["cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
-            "-I"+str(native), "-I"+str(root/"framepeer/native"), "-I"+str(root/"native"),
-            str(probe), str(native/"launch.c"), "-o", library, "-lcrypto", "-pthread"],
-            check=True, capture_output=True, timeout=30)
-        with self.assertRaisesRegex(AttributeError,"video_broker_frame_delivery_last_boundary"):
-            LinuxPacketChannel(ctypes.CDLL(library))
+        for symbol in ("video_broker_frame_delivery_last_boundary", "video_broker_frame_peer_current_timed"):
+            with self.subTest(symbol=symbol):
+                probe.write_text(f'#define {symbol} absent_boundary\n#include "frame_peer_python.c"\n')
+                library = str(Path(self.temporary.name)/f"libmissing_{symbol}.so")
+                subprocess.run(["cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
+                    "-I"+str(native), "-I"+str(root/"framepeer/native"), "-I"+str(root/"native"),
+                    str(probe), str(native/"launch.c"), "-o", library, "-lcrypto", "-pthread"],
+                    check=True, capture_output=True, timeout=30)
+                with self.assertRaisesRegex(AttributeError,symbol):
+                    LinuxPacketChannel(ctypes.CDLL(library))
 
     def test_native_boundary_contract_sanitized_thread_lifetime(self):
         root = Path(__file__).resolve().parents[2]
@@ -378,6 +379,62 @@ int observed_boundary_gil(void) { return boundary_gil; }
         measured = dict(word.split("=",1) for word in text.split() if "=" in word)
         self.assertGreaterEqual(int(measured['native_call_us']),0)
         self.assertGreaterEqual(int(measured['native_resume_gap_us']),40_000)
+
+    def test_post_receive_authority_delay_is_distinct_from_native_receive(self):
+        from test_delivery import records, reader
+        _, _, packets = records()
+        value, writer = self.channel()
+        for record in packets: writer.send(record)
+        source = reader(value)
+        source.budget_ns = 30_000_000
+        current, calls = value._bounded_current, []
+        def delayed(*args):
+            result = current(*args)
+            calls.append(None)
+            # DeliveryReader current, channel preflight, channel post-receive.
+            if len(calls) == 3:
+                time.sleep(.05)
+            return result
+        value._bounded_current = delayed
+        with self.assertLogs("video_broker_sdk.delivery", "WARNING") as logs:
+            with self.assertRaises(TimeoutError): source.read()
+        text = " ".join(logs.output)
+        measured = dict(word.split("=", 1) for word in text.split() if "=" in word)
+        self.assertEqual(measured["channel_phase"], "post_receive_authority")
+        self.assertGreaterEqual(int(measured["native_authority_resume_gap_us"]), 40_000)
+        self.assertLess(int(measured["native_authority_call_us"]), 30_000)
+        self.assertGreaterEqual(int(measured["channel_failure_us"]), 40_000)
+        self.assertGreaterEqual(int(measured["channel_diagnostics_us"]), 0)
+        self.assertEqual(source.last, 0)
+        self.assertTrue(source._closed)
+        self.assertIn("validated_chunk_payload_bytes=96", text)
+
+    def test_failure_timestamp_excludes_delayed_diagnostic_copy(self):
+        from test_delivery import records, reader
+        _, _, packets = records()
+        value, writer = self.channel()
+        for record in packets: writer.send(record)
+        source = reader(value)
+        source.budget_ns = 30_000_000
+        receive = value._lib.video_broker_frame_delivery_receive_sha256
+        def delayed_receive(*args):
+            result = receive(*args)
+            time.sleep(.05)
+            return result
+        value._lib.video_broker_frame_delivery_receive_sha256 = delayed_receive
+        copy_timing = value._bounded_last_timing
+        def delayed_copy(*args):
+            time.sleep(.05)
+            return copy_timing(*args)
+        value._bounded_last_timing = delayed_copy
+        with self.assertLogs("video_broker_sdk.delivery", "WARNING") as logs:
+            with self.assertRaises(TimeoutError): source.read()
+        measured = dict(word.split("=", 1) for word in " ".join(logs.output).split() if "=" in word)
+        self.assertEqual(measured["channel_phase"], "post_receive_deadline")
+        self.assertGreaterEqual(int(measured["channel_diagnostics_us"]), 40_000)
+        self.assertGreater(int(measured["transaction_us"])-int(measured["channel_failure_us"]), 40_000)
+        self.assertTrue(source._closed)
+        self.assertEqual(source.last, 0)
 
     def test_delivery_close_joins_total_deadline_and_does_not_restart_it_per_record(self):
         from test_delivery import records, reader

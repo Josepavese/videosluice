@@ -36,3 +36,10 @@ class DeliveryProgress:
     # means unavailable, never zero wait. The latter is NOT a measured GIL wait.
     native_call_us: int = -1
     native_resume_gap_us: int = -1
+    # The last authority check and its return to Python are separate from IO.
+    native_authority_call_us: int = -1
+    native_authority_cpu_us: int = -1
+    native_authority_resume_gap_us: int = -1
+    channel_phase: str = "unavailable"
+    channel_failure_us: int = -1
+    channel_diagnostics_us: int = -1
