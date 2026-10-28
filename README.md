@@ -40,7 +40,8 @@ rm /tmp/videosluice-install.sh
 ~/.local/bin/videosluice --help
 ```
 
-For a pinned RDK X5 install, pass `--version v0.1.3 --variant rdkx5`. That variant
+For a pinned RDK X5 install, select a [published tag](https://github.com/Josepavese/videosluice/releases)
+with `--version TAG --variant rdkx5`. That variant
 requires the board's supported vendor media runtime. The installer does not
 change kernels, drivers, services or application configuration. macOS and
 Windows providers are not implemented.
@@ -75,7 +76,7 @@ Consume compressed packets through [the wire protocol](PROTOCOL.md), and analysi
 through the [Python SDK](sdk/python/) or public Go packages:
 
 ```sh
-go get github.com/Josepavese/videosluice@v0.1.3
+go get github.com/Josepavese/videosluice@latest
 ```
 
 The broker handles frame references and geometry. Detectors, models, identities,
