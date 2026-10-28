@@ -118,6 +118,10 @@ class LinuxPacketChannel:
         result = self._bounded_current(self._state, boundary)
         resumed_ns = time.monotonic_ns()
         if progress is not None:
+            # A later unavailable clock must not inherit an earlier check.
+            progress.native_authority_call_us = -1
+            progress.native_authority_cpu_us = -1
+            progress.native_authority_resume_gap_us = -1
             entered, completed, cpu_entered, cpu_completed = boundary
             if entered > 0 and completed >= entered:
                 progress.native_authority_call_us = (completed-entered)//1000

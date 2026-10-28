@@ -46,7 +46,12 @@ class PacketChannel(Protocol):
         No result or retained input may escape failure or the total deadline.
         """
         ...
-    def close(self) -> None: ...
+    def close(self) -> None:
+        """Join owned IO and release exactly once, serialized with all users.
+        Repeated/concurrent close joins that same completion and preserves an
+        uncertain release error; closing admission alone is not completion.
+        """
+        ...
 
 
 class Unavailable(Exception):

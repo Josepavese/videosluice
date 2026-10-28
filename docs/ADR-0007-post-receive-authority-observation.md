@@ -36,3 +36,13 @@ retaining expiry, retirement and the unadvanced cursor. Existing native tests
 prove authority and diagnostic getters retain the GIL, socket waits release it,
 and partial/corrupt/foreign frames remain rejected. Physical cause and hardware
 qualification require integrated observation of the same failing interval.
+
+Review of the same failure path exposed a separate lifetime defect: the outer
+reader treated its closed-admission flag as completed provider cleanup. A second
+close could therefore return while the first was still joining native IO, or
+hide an uncertain release. Always delegate close to the channel's existing
+serialized, idempotent completion instead of introducing another lock/cache.
+The deterministic concurrent regression holds cleanup in flight, verifies both
+callers reach the provider, and preserves the same failure without repeating
+native release. This fixes lifetime reporting; it does not explain delivery
+latency or make a failed transaction reusable.

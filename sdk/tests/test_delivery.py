@@ -1,6 +1,7 @@
 """Standalone SDK regressions; no application, camera or device grants required."""
 import hashlib
 import struct
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -122,6 +123,45 @@ def reader(channel):
 
 
 class DeliveryDiagnostics(unittest.TestCase):
+    def test_concurrent_close_joins_provider_and_preserves_uncertain_release(self):
+        from concurrent.futures import ThreadPoolExecutor
+        failure = OSError("uncertain native release")
+        class JoiningChannel(Channel):
+            def __init__(self):
+                super().__init__()
+                self.entered = [threading.Event(), threading.Event()]
+                self.release = threading.Event()
+                self.close_lock, self.entry_lock = threading.Lock(), threading.Lock()
+                self.entries = self.releases = 0
+            def close(self):
+                with self.entry_lock:
+                    self.entered[min(self.entries, 1)].set()
+                    self.entries += 1
+                with self.close_lock:
+                    if not self.closed:
+                        assert self.release.wait(2), "fixture release was not completed"
+                        self.closed = True
+                        self.releases += 1
+                    raise failure
+        channel = JoiningChannel()
+        source = reader(channel)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(source.close)
+            assert channel.entered[0].wait(1)
+            second = pool.submit(source.close)
+            try:
+                self.assertTrue(channel.entered[1].wait(1), "reader skipped the provider's close obligation")
+                self.assertFalse(second.done(), "close reported success while release was still in flight")
+            finally:
+                channel.release.set()
+            for pending in (first, second):
+                with self.assertRaises(OSError) as error: pending.result(timeout=1)
+                self.assertIs(error.exception, failure)
+        self.assertEqual(channel.releases, 1)
+        with self.assertRaises(OSError) as error: source.close()
+        self.assertIs(error.exception, failure)
+        self.assertEqual(channel.releases, 1)
+
     def test_provider_must_return_the_complete_independently_computed_digest(self):
         header, pixels, packets = records()
         for wrong in (None, b"", bytes(31), bytes(33), bytes(32),

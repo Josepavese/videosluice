@@ -263,6 +263,8 @@ class DeliveryReader:
             self._lock.release()
 
     def close(self):
-        if not self._closed:
-            self._closed = True
-            self.channel.close()
+        # Admission closes immediately, but the provider owns joining in-flight
+        # IO and remembers uncertain release. Every caller must observe that
+        # SAME completion, even if another caller already closed admission.
+        self._closed = True
+        self.channel.close()

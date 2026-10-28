@@ -436,6 +436,30 @@ int observed_boundary_gil(void) { return boundary_gil; }
         self.assertTrue(source._closed)
         self.assertEqual(source.last, 0)
 
+    def test_unavailable_authority_clock_cannot_reuse_previous_check(self):
+        from test_delivery import records, reader
+        _, _, packets = records()
+        value, writer = self.channel()
+        for record in packets: writer.send(record)
+        source = reader(value)
+        source.budget_ns = 30_000_000
+        current, calls = value._bounded_current, []
+        def unavailable(*args):
+            result = current(*args)
+            calls.append(None)
+            if len(calls) == 3:
+                for i in range(4): args[1][i] = 0
+                time.sleep(.05)
+            return result
+        value._bounded_current = unavailable
+        with self.assertLogs("video_broker_sdk.delivery", "WARNING") as logs:
+            with self.assertRaises(TimeoutError): source.read()
+        text = " ".join(logs.output)
+        for name in ("native_authority_call_us", "native_authority_cpu_us", "native_authority_resume_gap_us"):
+            self.assertIn(name+"=-1", text)
+        self.assertTrue(source._closed)
+        self.assertEqual(source.last, 0)
+
     def test_delivery_close_joins_total_deadline_and_does_not_restart_it_per_record(self):
         from test_delivery import records, reader
         _, _, packets = records()
