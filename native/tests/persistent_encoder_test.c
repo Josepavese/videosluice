@@ -16,9 +16,10 @@ typedef struct {
 	int initialize_calls;
 	int configure_calls;
 	int start_calls;
-	int pause_calls;
+	int stop_calls;
+	bool stopped;
 	int release_calls;
-	int initialize_error, configure_error, start_error, pause_error, release_error;
+	int initialize_error, configure_error, start_error, stop_error, release_error;
 	int set_rate_calls;
 	bool corrupt_rate_readback;
 	int request_idr_calls;
@@ -77,6 +78,7 @@ hb_s32 hb_mm_mc_get_default_context(
 hb_s32 hb_mm_mc_initialize(media_codec_context_t *context) {
 	(void)context;
 	fake.initialize_calls++;
+	fake.stopped = false;
 	return fake.initialize_error;
 }
 
@@ -99,12 +101,20 @@ hb_s32 hb_mm_mc_start(
 
 hb_s32 hb_mm_mc_pause(media_codec_context_t *context) {
 	(void)context;
-	fake.pause_calls++;
-	return fake.pause_error;
+	assert(!"pause does not satisfy the SDK stop-before-release contract");
+	return -1;
+}
+
+hb_s32 hb_mm_mc_stop(media_codec_context_t *context) {
+	(void)context;
+	fake.stop_calls++;
+	if (!fake.stop_error) fake.stopped = true;
+	return fake.stop_error;
 }
 
 hb_s32 hb_mm_mc_release(media_codec_context_t *context) {
 	(void)context;
+	assert(fake.stopped);
 	fake.release_calls++;
 	return fake.release_error;
 }
@@ -314,14 +324,14 @@ static void test_live_runtime_control(void) {
 		&encoder, false, 20, 1024) == VIDEO_BROKER_RDKX5_ENCODER_CONTROL_UNCHANGED);
 	assert(video_broker_rdkx5_persistent_encoder_encode(
 		&encoder, frame, 1280 * 720 * 3 / 2, stream, sizeof(stream), &epoch, &bitrate) == 0);
-	assert(fake.pause_calls == 0 && fake.release_calls == 0 && fake.start_calls == 1);
+	assert(fake.stop_calls == 0 && fake.release_calls == 0 && fake.start_calls == 1);
 	assert(video_broker_rdkx5_persistent_encoder_set_control(
 		&encoder, true, 20, 1024) == VIDEO_BROKER_RDKX5_ENCODER_CONTROL_ACTIVATED);
 	assert(encoder.epoch == 2 && fake.request_idr_calls == 4 &&
 		fake.request_idr_header_calls == 4 && fake.start_calls == 1);
 
 	video_broker_rdkx5_persistent_encoder_destroy(&encoder);
-	assert(fake.pause_calls == 1 && fake.release_calls == 1 && fake.start_calls == 1);
+	assert(fake.stop_calls == 1 && fake.release_calls == 1 && fake.start_calls == 1);
 	free(frame);
 }
 
@@ -356,7 +366,7 @@ static void test_h265_quality_contract(void) {
 		encoder.max_qp_p == 41 && encoder.max_qp_b == 43);
 	assert(params->bit_rate == 4096 && params->max_qp_P == 41);
 	video_broker_rdkx5_persistent_encoder_destroy(&encoder);
-	assert(fake.pause_calls == 1 && fake.release_calls == 1);
+	assert(fake.stop_calls == 1 && fake.release_calls == 1);
 }
 
 static void test_h265_realtime_contract(void) {
@@ -384,7 +394,7 @@ static void test_h265_realtime_contract(void) {
 	assert(params->intra_qp == 36 && params->initial_rc_qp == 36);
 	assert(params->vbv_buffer_size == 10 && params->ctu_level_rc_enalbe);
 	video_broker_rdkx5_persistent_encoder_destroy(&encoder);
-	assert(fake.pause_calls == 1 && fake.release_calls == 1);
+	assert(fake.stop_calls == 1 && fake.release_calls == 1);
 }
 
 static void test_h265_avbr_recorder_contract(void) {
@@ -772,15 +782,15 @@ static void release_failure(int codec, int stage) {
 	memset(&fake, 0, sizeof(fake));
 	assert(video_broker_rdkx5_persistent_encoder_init(&encoder, codec,
 		VIDEO_BROKER_RDKX5_RATE_CONTROL_REALTIME_CBR, 0, 128, 128, 30, 1024) == 0);
-	fake.pause_error = stage == 1 ? -71 : 0;
+	fake.stop_error = stage == 1 ? -71 : 0;
 	fake.release_error = stage == 2 ? -72 : 0;
 	assert(video_broker_rdkx5_persistent_encoder_destroy(&encoder) < 0);
 	assert(encoder.initialized); /* Old destroy discarded failed SDK ownership. */
 	assert(encoder.started == (stage == 1));
 	assert(encoder.close_error == (stage == 1 ? -71 : -72));
-	assert(fake.pause_calls == 1 && fake.release_calls == (stage == 2));
+	assert(fake.stop_calls == 1 && fake.release_calls == (stage == 2));
 	assert(video_broker_rdkx5_persistent_encoder_destroy(&encoder) < 0);
-	assert(fake.pause_calls == 1 && fake.release_calls == (stage == 2));
+	assert(fake.stop_calls == 1 && fake.release_calls == (stage == 2));
 	assert(video_broker_rdkx5_persistent_encoder_init(&encoder, codec,
 		VIDEO_BROKER_RDKX5_RATE_CONTROL_REALTIME_CBR, 0, 128, 128, 30, 1024) < 0);
 	assert(fake.initialize_calls == 1);
@@ -812,7 +822,7 @@ static void partial_open_failure(int codec, int stage) {
 	assert(encoder.close_error == (stage == 1 ? -81 : -84));
 	assert(video_broker_rdkx5_encoder_resources_quarantined());
 	assert(video_broker_rdkx5_persistent_encoder_destroy(&encoder)<0);
-	assert(fake.initialize_calls == 1 && fake.pause_calls == 0 && fake.release_calls == (stage != 1));
+	assert(fake.initialize_calls == 1 && fake.stop_calls == (stage != 1) && fake.release_calls == (stage != 1));
 }
 
 static void successful_release_and_reuse(int codec, int unused) {
@@ -835,7 +845,7 @@ static void successful_release_and_reuse(int codec, int unused) {
 		assert(video_broker_rdkx5_persistent_encoder_destroy(&encoder)==0);
 	}
 	assert(!video_broker_rdkx5_encoder_resources_quarantined());
-	assert(fake.initialize_calls==4 && fake.pause_calls==3 && fake.release_calls==4);
+	assert(fake.initialize_calls==4 && fake.stop_calls==4 && fake.release_calls==4);
 }
 
 static void run_failure(void (*test)(int, int), int codec, int stage) {

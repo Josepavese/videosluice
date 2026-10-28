@@ -833,13 +833,14 @@ int video_broker_rdkx5_persistent_encoder_destroy(
 	}
 	if (encoder->close_error != 0) return -1;
 	encoder->active = false;
-	if (encoder->started) {
-		int code = hb_mm_mc_pause(&encoder->context);
-		if (code != 0) return encoder_release_failure(encoder, "sdk_pause", code);
-		encoder->started = false;
-	}
 	if (encoder->initialized) {
-		int code = hb_mm_mc_release(&encoder->context);
+		/* X5 MediaCodec requires stop before release. Pause only suspends
+		 * its threads; it does not reset queues or release worker resources.
+		 * Stop also covers a configure/start that failed after initialize. */
+		int code = hb_mm_mc_stop(&encoder->context);
+		if (code != 0) return encoder_release_failure(encoder, "sdk_stop", code);
+		encoder->started = false;
+		code = hb_mm_mc_release(&encoder->context);
 		if (code != 0) return encoder_release_failure(encoder, "sdk_release", code);
 		encoder->initialized = false;
 	}

@@ -210,6 +210,7 @@ hb_s32 hb_mm_mc_start(
 	media_codec_context_t *context,
 	mc_av_codec_startup_params_t *params);
 hb_s32 hb_mm_mc_pause(media_codec_context_t *context);
+hb_s32 hb_mm_mc_stop(media_codec_context_t *context);
 hb_s32 hb_mm_mc_release(media_codec_context_t *context);
 hb_s32 hb_mm_mc_get_rate_control_config(
 	media_codec_context_t *context,
