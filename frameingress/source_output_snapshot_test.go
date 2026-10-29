@@ -24,6 +24,41 @@ func outputSnapshotReceiver(t *testing.T, f *fixture, budget time.Duration) (*in
 	return r, connection
 }
 
+func TestSourceSnapshotBusyNeverHidesStructuralCause(t *testing.T) {
+	for _, kind := range []string{"surface", "output"} {
+		for _, cause := range []error{peer.ErrUnauthorized, wire.ErrMapping} {
+			t.Run(kind+"/"+cause.Error(), func(t *testing.T) {
+				f := setup(t)
+				calls := 0
+				snapshot := sourceSnapshotFunc(func(context.Context, int, uint64, []byte) (int, uint64, error) {
+					calls++
+					return 0, 0, fmt.Errorf("provider: %w", errors.Join(wire.ErrBusy, cause))
+				})
+				var err error
+				if kind == "surface" {
+					r, _ := surfaceReceiver(t, f)
+					err = r.Poll(context.Background(), snapshot)
+					if r.Stats().Busy != 0 || r.Stats().StagedFrames != 0 {
+						t.Fatal("structural surface failure counted as contention", r.Stats())
+					}
+				} else {
+					r, _ := outputSnapshotReceiver(t, f, time.Second)
+					err = r.Poll(context.Background(), snapshot, func(context.Context, wire.Header, []byte) error {
+						t.Fatal("mixed failure exposed output pixels")
+						return nil
+					})
+					if r.Stats().Busy != 0 || r.Stats().Outputs != 0 {
+						t.Fatal("structural output failure counted as contention", r.Stats())
+					}
+				}
+				if !errors.Is(err, cause) || calls != 1 {
+					t.Fatalf("mixed failure hidden or next slot polled: calls=%d err=%v", calls, err)
+				}
+			})
+		}
+	}
+}
+
 func TestOutputSnapshotsOrderSlotsAndNeverReplay(t *testing.T) {
 	f := setup(t)
 	must(t, f.i.AcceptSurface(context.Background(), f.surface(t, 1), 100, 200))

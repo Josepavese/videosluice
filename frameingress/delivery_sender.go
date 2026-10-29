@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
-	"errors"
 	"time"
 
 	peer "github.com/Josepavese/videosluice/framepeer"
@@ -190,7 +189,7 @@ func (s *FrameSender) SendDelivery(ctx context.Context, access *Access, p *Deliv
 			}
 			return nil
 		})
-		if !errors.Is(err, ErrDeliveryIdle) {
+		if singleCause(err) != ErrDeliveryIdle {
 			return err
 		}
 		progress.snapshotFinished = time.Now()

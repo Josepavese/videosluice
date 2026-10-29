@@ -5,6 +5,7 @@ package ingress_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,62 @@ import (
 	snapshotlinux "github.com/Josepavese/videosluice/framewire/provider/linux"
 	"github.com/Josepavese/videosluice/framewire/surfaceport"
 )
+
+func TestDeliverySnapshotOnlyPureContentionMayBecomeIdle(t *testing.T) {
+	for _, cause := range []error{peer.ErrUnauthorized, wire.ErrMapping, context.DeadlineExceeded} {
+		t.Run(cause.Error(), func(t *testing.T) {
+			f := setup(t)
+			native, err := snapshotlinux.New(snapshotlinux.Limits{Bytes: 1 << 20, Allocations: 2, Operations: 2})
+			must(t, err)
+			allocator := &snapshotFaultAllocator{Allocator: native, fault: fmt.Errorf("provider: %w", errors.Join(wire.ErrBusy, cause))}
+			p, err := in.NewDeliveryPublication(context.Background(), f.b, "analysis", in.DeliveryLayout{
+				Transform: f.tr, Codec: wire.NV12, StrideY: 8, StrideUV: 8, MaxPayload: 96}, allocator)
+			must(t, err)
+			defer func() { p.Close(); must(t, p.WaitClosed(context.Background())) }()
+			h, pixels := publicationFrame(t, f, 1)
+			must(t, p.Publish(context.Background(), h, pixels))
+			err = p.Snapshot(context.Background(), 0, func(context.Context, wire.Header, []byte) error {
+				t.Fatal("mixed provider failure exposed pixels")
+				return nil
+			})
+			if !errors.Is(err, cause) || errors.Is(err, in.ErrDeliveryIdle) {
+				t.Fatalf("structural/expired cause became a harmless miss: %v", err)
+			}
+		})
+	}
+}
+
+func TestDeliverySenderIdleDoesNotHideCancellationAtResourceFence(t *testing.T) {
+	authority := &snapshotCancelAuthority{}
+	f := setupCopierAuthority(t, copyport.CPU{}, authority)
+	consumer := &cancelingSenderAuthority{}
+	access, err := in.NewAccess(f.r, f.b, consumer, in.AccessPolicy{Generation: "consumer-start-1", Streams: []string{"analysis"}, MaxRegions: 1, MaxRequests: 1, MaxResults: 1})
+	must(t, err)
+	defer access.Revoke()
+	native, err := snapshotlinux.New(snapshotlinux.Limits{Bytes: 1 << 20, Allocations: 2, Operations: 2})
+	must(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	allocator := &snapshotFaultAllocator{Allocator: native, fault: wire.ErrBusy, afterFault: func() { authority.cancel = cancel }}
+	p, err := in.NewDeliveryPublication(context.Background(), f.b, "analysis", in.DeliveryLayout{
+		Transform: f.tr, Codec: wire.NV12, StrideY: 8, StrideUV: 8, MaxPayload: 96}, allocator)
+	must(t, err)
+	defer func() { p.Close(); must(t, p.WaitClosed(context.Background())) }()
+	h, pixels := publicationFrame(t, f, 1)
+	must(t, p.Publish(context.Background(), h, pixels))
+	sender, err := in.NewFrameSender(context.Background(), f.r, consumer, 96, uint64(time.Second))
+	must(t, err)
+	defer closeSender(t, sender)
+	err = sender.SendDelivery(ctx, access, p, nextDelivery(h.PublicationEpoch, 0), false)
+	if !errors.Is(err, context.Canceled) || errors.Is(err, in.ErrDeliveryIdle) || consumer.writes != 0 {
+		t.Fatalf("idle hid resource cancellation or reached wire: writes=%d err=%v", consumer.writes, err)
+	}
+	for _, field := range []string{"delivery_send_progress phase=snapshot", "delivery_snapshot_progress phase=provider", "provider_us=", "confirmed_records=0 ", "context_canceled=true"} {
+		if !strings.Contains(err.Error(), field) {
+			t.Fatalf("missing idle-fence checkpoint %q: %v", field, err)
+		}
+	}
+}
 
 // A live authority can finish a check after cancellation. Snapshot must fence
 // that late result BEFORE invoking the consumer, not only in Borrow's epilogue.

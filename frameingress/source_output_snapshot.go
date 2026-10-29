@@ -37,15 +37,9 @@ type SourceOutputStats struct{ Outputs, Busy, Drops, Superseded, Failures uint64
 // Only a single causal pressure sentinel qualifies. Mixed failures, especially
 // errors.Join(authority, deadline), must never hide a structural failure.
 func outputPressure(err error) bool {
-	for err != nil {
-		if err == context.DeadlineExceeded || err == fa.DeadlineExceeded || err == fa.Expired || err == fa.CapacityRejected {
-			return true
-		}
-		wrapped, ok := err.(interface{ Unwrap() error })
-		if !ok {
-			return false
-		}
-		err = wrapped.Unwrap()
+	switch singleCause(err) {
+	case context.DeadlineExceeded, fa.DeadlineExceeded, fa.Expired, fa.CapacityRejected:
+		return true
 	}
 	return false
 }
@@ -146,7 +140,7 @@ func (r *SourceOutputReceiver) Poll(parent context.Context, snapshot SourceSnaps
 			}
 			phase = "stage"
 			n, serial, err := snapshot.StageInto(ctx, slot, r.last[slot], buffers[slot])
-			if errors.Is(err, wire.ErrBusy) {
+			if singleCause(err) == wire.ErrBusy {
 				r.busy.Add(1)
 				continue
 			}

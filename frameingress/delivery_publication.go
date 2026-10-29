@@ -215,7 +215,7 @@ func (p *DeliveryPublication) Snapshot(ctx context.Context, last uint64, consume
 	}
 	progress := deliverySnapshotProgress{phase: "authority", started: time.Now()}
 	defer func() {
-		if err != nil && !errors.Is(err, ErrDeliveryIdle) {
+		if err != nil && err != ErrDeliveryIdle {
 			err = progress.failure(err)
 		}
 	}()
@@ -241,11 +241,12 @@ func (p *DeliveryPublication) Snapshot(ctx context.Context, last uint64, consume
 	}
 	defer p.read.Unlock()
 	progress.phase, progress.borrowStarted = "resource", time.Now()
-	return p.resource.Borrow(ctx, func(ctx context.Context, memory *deliveryMemory) error {
+	idle := false
+	err = p.resource.Borrow(ctx, func(ctx context.Context, memory *deliveryMemory) error {
 		progress.phase, progress.borrowed = "provider", time.Now()
 		used, err := memory.allocation.SnapshotInto(ctx, memory.read)
 		progress.providerDone = time.Now()
-		if errors.Is(err, wire.ErrBusy) {
+		if singleCause(err) == wire.ErrBusy {
 			// The producer may advance its atomic mapping during this bounded
 			// copy. No pixels reached the callback: answer with the existing
 			// no-delivery record instead of retiring a healthy reader binding.
@@ -256,7 +257,8 @@ func (p *DeliveryPublication) Snapshot(ctx context.Context, last uint64, consume
 			if err := p.binding.ValidateCurrent(); err != nil {
 				return err
 			}
-			return ErrDeliveryIdle
+			idle = true
+			return nil
 		}
 		if err != nil {
 			return err
@@ -284,7 +286,8 @@ func (p *DeliveryPublication) Snapshot(ctx context.Context, last uint64, consume
 			return err
 		}
 		if header.DeliveryID <= last {
-			return ErrDeliveryIdle
+			idle = true
+			return nil
 		}
 		progress.phase = "consumer"
 		err = consume(ctx, header, memory.read[wire.HeaderSize:used:used])
@@ -294,6 +297,13 @@ func (p *DeliveryPublication) Snapshot(ctx context.Context, last uint64, consume
 		}
 		return err
 	})
+	// Resource retirement/cancellation fences run after the callback. Produce
+	// the harmless miss only when that complete borrow succeeded; otherwise an
+	// idle callback joined with a hard fence could conceal the original cause.
+	if err == nil && idle {
+		return ErrDeliveryIdle
+	}
+	return err
 }
 
 func (p *DeliveryPublication) Close() {

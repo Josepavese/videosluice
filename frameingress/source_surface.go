@@ -111,7 +111,7 @@ func (r *SourceSurfaceReceiver) Poll(ctx context.Context, snapshot SourceSnapsho
 			observed := r.clock.NowNS()
 			n, serial, err := snapshot.StageInto(ctx, slot, r.last[slot], buffer)
 			if err != nil {
-				if errors.Is(err, wire.ErrBusy) {
+				if singleCause(err) == wire.ErrBusy {
 					r.busy.Add(1)
 					continue
 				}

@@ -21,8 +21,9 @@ import (
 
 type snapshotFaultAllocator struct {
 	surfaceport.Allocator
-	fault error
-	reads int
+	fault      error
+	reads      int
+	afterFault func()
 }
 
 func (a *snapshotFaultAllocator) Create(mapping wire.Mapping) (surfaceport.Allocation, error) {
@@ -42,6 +43,9 @@ func (a *snapshotFaultAllocation) SnapshotInto(ctx context.Context, out []byte) 
 	a.owner.reads++
 	if err := a.owner.fault; err != nil {
 		a.owner.fault = nil
+		if a.owner.afterFault != nil {
+			a.owner.afterFault()
+		}
 		return 0, err
 	}
 	return a.Allocation.SnapshotInto(ctx, out)
@@ -51,7 +55,7 @@ func TestDeliverySessionSnapshotContentionKeepsBindingAndExactFrame(t *testing.T
 	f, control, _ := frameSessionFixture(t)
 	native, err := snapshotlinux.New(snapshotlinux.Limits{Bytes: 1 << 20, Allocations: 2, Operations: 2})
 	must(t, err)
-	allocator := &snapshotFaultAllocator{Allocator: native, fault: wire.ErrBusy}
+	allocator := &snapshotFaultAllocator{Allocator: native, fault: &in.Failure{Stage: "fixture_contention", Cause: wire.ErrBusy}}
 	p, err := in.NewDeliveryPublication(context.Background(), f.b, "analysis", in.DeliveryLayout{
 		Transform: f.tr, Codec: wire.NV12, StrideY: 8, StrideUV: 8, MaxPayload: 96}, allocator)
 	must(t, err)

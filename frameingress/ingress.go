@@ -5,6 +5,7 @@ package ingress
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -28,6 +29,18 @@ func fail(stage string, err error) error {
 		return nil
 	}
 	return &Failure{stage, err}
+}
+
+// A recoverable sentinel must be the sole cause. Peel diagnostic wrappers,
+// but retain joined causes as compound failures rather than matching one leaf.
+func singleCause(err error) error {
+	for {
+		next := errors.Unwrap(err)
+		if next == nil {
+			return err
+		}
+		err = next
+	}
 }
 
 // DeliveryLayout is an immutable, admitted source-to-delivery transform. A
