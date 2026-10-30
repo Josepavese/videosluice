@@ -111,5 +111,15 @@ Embedding applications translate their configuration into the product schema
 and supervise the released broker. Application AI workflows remain outside this
 product. See [qualification](docs/QUALIFICATION.md) and [naming research](docs/NAMING.md).
 
+For latency-sensitive Linux deployments on slow storage, the optional daemon
+flag `--resident-image-budget-bytes=N` requires bounded residency of startup
+program and shared-library read-only file pages before capture starts. The
+launcher must grant a sufficient `RLIMIT_MEMLOCK`; admission fails if the actual
+images exceed either limit. Zero disables this policy. Children, mutable
+memory and later-loaded images are outside its scope. See
+[the residency decision](docs/ADR-0010-process-image-residency.md) for ownership,
+resource bounds and qualification limits.
+
+
 MIT licensed. Native system/vendor libraries retain their own terms; see
 [third-party notices](THIRD_PARTY_NOTICES.md).

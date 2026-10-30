@@ -297,3 +297,12 @@ func TestDaemonWaitRetainsBootstrapUntilFrameLoopJoins(t *testing.T) {
 		t.Fatal("frame loop join stuck")
 	}
 }
+
+func TestDaemonResidencyRefusalPrecedesCaptureBootstrap(t *testing.T) {
+	calls := 0
+	args := append(launchArgs(), "--resident-image-budget-bytes", "1")
+	err := runDaemon(context.Background(), args, io.Discard, func(context.Context, frameLaunchInput) (frameBootstrapOwner, error) { calls++; return nil, nil })
+	if err == nil || !strings.Contains(err.Error(), "process image admission") || calls != 0 {
+		t.Fatalf("capture opened without residency: calls=%d err=%v", calls, err)
+	}
+}

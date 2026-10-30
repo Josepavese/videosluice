@@ -20,6 +20,7 @@ import (
 	"github.com/Josepavese/videosluice/config"
 	in "github.com/Josepavese/videosluice/frameingress"
 	"github.com/Josepavese/videosluice/internal/diagnosticlog"
+	"github.com/Josepavese/videosluice/internal/processimage"
 	"github.com/Josepavese/videosluice/internal/unixsocket"
 	"github.com/Josepavese/videosluice/routing"
 )
@@ -59,6 +60,7 @@ func runDaemon(parent context.Context, args []string, output io.Writer, openFram
 	routingCatalogPath := flags.String("routing-catalog", "", "absolute path to the central runtime routing catalog")
 	routingPlanPath := flags.String("routing-plan", "", "absolute path to the persisted runtime routing plan")
 	routingControlSocket := flags.String("routing-control-socket", "", "absolute path to the standalone runtime routing control socket")
+	imageBudget := flags.Uint64("resident-image-budget-bytes", 0, "required startup program/library residency budget; 0 disables; excludes child processes and mutable memory")
 	checkConfig := flags.Bool("check-config", false, "validate the configuration and exit")
 	discoverCapabilities := flags.Bool("discover-capabilities", false, "print standalone local component discovery as JSON and exit")
 	engineDirectory := flags.String("engine-directory", "", "product worker/plugin directory for capability discovery")
@@ -79,6 +81,16 @@ func runDaemon(parent context.Context, args []string, output io.Writer, openFram
 	}
 	if err := parent.Err(); err != nil {
 		return err
+	}
+	images, err := processimage.Acquire(parent, *imageBudget)
+	if images != nil {
+		defer func() { result = errors.Join(result, images.Close()) }()
+	}
+	if err != nil {
+		return fmt.Errorf("process image admission: %w", err)
+	}
+	if images.Bytes() != 0 {
+		log.Printf("[video-broker] process_image_residency=locked bytes=%d budget_bytes=%d scope=startup_readonly_images", images.Bytes(), *imageBudget)
 	}
 	ctx, stop := context.WithCancel(parent)
 	defer stop()
