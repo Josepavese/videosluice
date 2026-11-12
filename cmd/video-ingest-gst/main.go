@@ -53,6 +53,7 @@ func (w *muxWriter) write(streamID byte, payload []byte) error {
 
 func main() {
 	cfg := ingestConfig{}
+	flag.BoolVar(&cfg.autofocus, "autofocus", false, "source-owned request for continuous autofocus when supported")
 	flag.StringVar(&cfg.sourceID, "source-id", "", "broker-owned canonical source identity")
 	flag.Uint64Var(&cfg.mediaEpoch, "media-epoch", 0, "broker-owned media epoch")
 	flag.StringVar(&cfg.sourceTransport, "source-transport", "", "capture source transport: v4l2 or libcamera")
@@ -138,6 +139,13 @@ func run(ctx context.Context, cfg ingestConfig) error {
 	elements, err := resolveGStreamerElements(ctx, cfg)
 	if err != nil {
 		return err
+	}
+	if cfg.autofocus {
+		if cfg.sourceTransport == "libcamera" {
+			elements.autofocusProperty = discoverLibcameraAutofocus(ctx)
+		} else if cfg.sourceTransport == "v4l2" {
+			initializeV4L2Autofocus(ctx, cfg.device)
+		}
 	}
 	emitGStreamerStageCapabilities(cfg, elements)
 	return runIsolatedGStreamer(ctx, cfg, elements)

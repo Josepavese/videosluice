@@ -384,6 +384,7 @@ func TestBuildBrokerMuxCommandRejectsImplicitV4L2Device(t *testing.T) {
 
 func TestBuildBrokerMuxCommandLibcamera(t *testing.T) {
 	cmd, adapterID, err := BuildBrokerMuxCommand(context.Background(), BrokerMuxPlan{
+		Autofocus:                  true,
 		LiveEnabled:                true,
 		LiveCodec:                  "h265",
 		AnalysisEnabled:            true,
@@ -425,6 +426,7 @@ func TestBuildBrokerMuxCommandLibcamera(t *testing.T) {
 	args := strings.Join(cmd.Args, " ")
 	for _, want := range []string{
 		"--source-transport libcamera",
+		"--autofocus true",
 		"--device /base/soc/i2c0mux/i2c@1/imx708@1a",
 		"--input-format nv12",
 		"--archive-codec h265",
@@ -464,6 +466,7 @@ func TestBuildBrokerMuxCommandLibcameraFallsBackPerCodecRole(t *testing.T) {
 
 func TestBuildBrokerMuxCommandV4L2UVC(t *testing.T) {
 	cmd, adapterID, err := BuildBrokerMuxCommand(context.Background(), BrokerMuxPlan{
+		Autofocus:              true,
 		SourceID:               "front",
 		MediaEpoch:             41,
 		LiveEnabled:            true,
@@ -504,6 +507,7 @@ func TestBuildBrokerMuxCommandV4L2UVC(t *testing.T) {
 	for _, want := range []string{
 		"/opt/video-broker/bin/rdkx5_v4l2_mux_bridge",
 		"--device /dev/video0",
+		"--autofocus true",
 		"--input-format mjpeg",
 		"--capture-width 1280",
 		"--capture-select-timeout-ms 2000",

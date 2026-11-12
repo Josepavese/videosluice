@@ -49,6 +49,7 @@ type BrokerMuxPlan struct {
 	CaptureCodecPolicy               string
 	CapturePolicy                    string
 	CaptureAspectPolicy              string
+	Autofocus                        bool
 	CaptureModeExclusions            []V4L2CaptureModeExclusion
 	AllowScaledYUYV                  bool
 	PreferExactYUYV                  bool
@@ -613,6 +614,7 @@ func (libcameraMuxAdapter) BuildCommand(ctx context.Context, plan BrokerMuxPlan)
 	}
 	args := []string{
 		"--source-transport", TransportLibcamera,
+		"--autofocus", strconv.FormatBool(plan.Autofocus),
 		"--device", strings.TrimSpace(plan.CaptureDevicePath),
 		"--input-format", format,
 		"--live-enabled", strconv.FormatBool(plan.LiveEnabled),
@@ -876,6 +878,7 @@ func (v4l2UVCMuxAdapter) BuildCommand(ctx context.Context, plan BrokerMuxPlan) (
 	}
 	if useGStreamerWorker {
 		args = append(args,
+			"--autofocus", strconv.FormatBool(plan.Autofocus),
 			"--warmup-sec", strconv.Itoa(plan.WarmupSec),
 			"--encode-provider", encodeProvider,
 			"--archive-encode-provider", archiveEncodeProvider,
@@ -889,6 +892,7 @@ func (v4l2UVCMuxAdapter) BuildCommand(ctx context.Context, plan BrokerMuxPlan) (
 		args = append(args, identityArgs...)
 	} else {
 		args = append(args,
+			"--autofocus", strconv.FormatBool(plan.Autofocus),
 			"--warmup-sec", strconv.Itoa(plan.WarmupSec),
 			"--archive-rate-control", normalizedArchiveRateControl(plan.ArchiveRateControl),
 			"--capture-select-timeout-ms", strconv.Itoa(plan.CaptureSelectTimeoutMs),

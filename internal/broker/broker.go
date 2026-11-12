@@ -172,6 +172,7 @@ type videoBrokerPlan struct {
 	CaptureCodecPolicy        string
 	CapturePolicy             string
 	CaptureAspectPolicy       string
+	Autofocus                 bool
 	AllowScaledYUYV           bool
 	PreferExactYUYV           bool
 	VideoOrientation          string
@@ -503,6 +504,7 @@ func resolveVideoBrokerPlan(cfg engineConfig) videoBrokerPlan {
 		CaptureCodecPolicy:        strings.TrimSpace(cfg.VideoCaptureCodecPolicy),
 		CapturePolicy:             strings.TrimSpace(cfg.VideoCapturePolicyProvider),
 		CaptureAspectPolicy:       strings.TrimSpace(cfg.VideoCaptureAspectPolicy),
+		Autofocus:                 cfg.VideoAutofocus,
 		AllowScaledYUYV:           cfg.VideoCaptureAllowScaledYUYV,
 		PreferExactYUYV:           cfg.VideoCapturePreferExactYUYV,
 		VideoOrientation:          videoproviders.NormalizeVideoOrientation(cfg.VideoOrientation),
@@ -1488,6 +1490,7 @@ func (rt *videoBrokerRuntime) ensureChildLocked(ctx context.Context) (result err
 		CaptureCodecPolicy:     captureCodecPolicy,
 		CapturePolicy:          capturePolicy,
 		CaptureAspectPolicy:    captureAspectPolicy,
+		Autofocus:              rt.plan.Autofocus,
 		CaptureModeExclusions:  append([]videoproviders.V4L2CaptureModeExclusion(nil), rt.captureModeExclusions...),
 		AllowScaledYUYV:        allowScaledYUYV,
 		PreferExactYUYV:        preferExactYUYV,

@@ -111,6 +111,9 @@ func buildGStreamerCaptureArgs(
 		args = append(args, "v4l2src", "device="+cfg.device, "io-mode=2", "do-timestamp=true", "!")
 	case "libcamera":
 		args = append(args, "libcamerasrc")
+		if cfg.autofocus && elements.autofocusProperty != "" {
+			args = append(args, elements.autofocusProperty)
+		}
 		if selector := strings.TrimSpace(cfg.device); selector != "" {
 			args = append(args, "camera-name="+selector)
 		}

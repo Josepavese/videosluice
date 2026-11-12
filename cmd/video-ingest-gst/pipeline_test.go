@@ -291,6 +291,7 @@ func TestBuildNativeH264PipelineAvoidsReencode(t *testing.T) {
 
 func TestBuildLibcameraPipelineUsesNativeSensorSource(t *testing.T) {
 	cfg := ingestConfig{
+		autofocus:       true,
 		sourceTransport: "libcamera",
 		liveEnabled:     true,
 		analysisEnabled: true,
@@ -307,14 +308,15 @@ func TestBuildLibcameraPipelineUsesNativeSensorSource(t *testing.T) {
 		archiveCodec: "h265", archiveContent: "adaptive",
 	}
 	args, err := buildIsolatedGStreamerArgsForTest(cfg, gstElements{
-		liveEncoder: "mpph265enc", archiveEncoder: "mpph265enc",
+		autofocusProperty: "af-mode=2",
+		liveEncoder:       "mpph265enc", archiveEncoder: "mpph265enc",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	pipeline := strings.Join(args, " ")
 	for _, expected := range []string{
-		"libcamerasrc camera-name=/base/soc/i2c0mux/i2c@1/imx708@1a",
+		"libcamerasrc af-mode=2 camera-name=/base/soc/i2c0mux/i2c@1/imx708@1a",
 		"video/x-raw,width=1920,height=1080,framerate=30/1",
 		"videoconvert ! video/x-raw,format=NV12 ! tee name=source",
 		"mpph265enc",
