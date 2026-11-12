@@ -295,10 +295,21 @@ storage barrier in the capture thread would introduce visible cadence jitter.
 ## Camera control
 
 The camera-control policy never imports a board catalog, VID/PID table or
-application identity. USB/UVC `auto` deliberately performs no control-endpoint
-I/O: it neither probes nor writes brightness, exposure, white balance or related
-firmware controls. The module owns AE/AWB and the broker corrects the acquired
+application identity. USB/UVC `auto` neither probes nor writes brightness,
+exposure, white balance or other ISP tuning controls. The module owns AE/AWB and the broker corrects the acquired
 surface through its global or zone-aware post-ISP tone pipeline.
+
+Source `autofocus` defaults to `continuous` in `config/`. Capture owners request
+continuous focus once at each camera open, including reconnects. Native V4L2
+uses only `V4L2_CID_FOCUS_AUTO` on its existing descriptor before STREAMON;
+portable V4L2 uses the same targeted ID before starting its capture graph.
+Already-enabled cameras are not rewritten. Absent controls and failed writes
+are reported separately and do not prevent capture. Readback confirms the mode,
+never optical sharpness. No runtime polling or reconciliation is performed.
+Libcamera uses its current generic `af-mode` property; the plugin filters it
+against actual camera capabilities. An unavailable backend property is reported,
+not treated as enabled. Sensor stacks without a focus API cannot attest focus.
+An explicit `autofocus: camera` preserves an operator calibration.
 
 An operator may select `configured` to apply an explicit module calibration.
 That profile is validated as a whole, applied exactly once before `STREAMON`,

@@ -16,6 +16,9 @@ import (
 const (
 	SchemaVersion = 3
 	maxConfigSize = 2 * 1024 * 1024
+	// Continuous is the product default; camera preserves operator calibration.
+	AutofocusContinuous = "continuous"
+	AutofocusCamera     = "camera"
 )
 
 var graphIDPattern = regexp.MustCompile(`^[a-z][a-z0-9._-]{0,63}$`)
@@ -33,6 +36,7 @@ type Config struct {
 }
 
 type SourceConfig struct {
+	Autofocus            string             `json:"autofocus"`
 	Identity             string             `json:"identity"`
 	Transport            string             `json:"transport"`
 	Device               string             `json:"device"`
@@ -423,6 +427,9 @@ func NormalizeRuntime(runtime RuntimeConfig) (RuntimeConfig, error) {
 }
 
 func applySourceDefaults(source *SourceConfig) {
+	if source.Autofocus == "" {
+		source.Autofocus = AutofocusContinuous
+	}
 	if source.SelectTimeoutMS <= 0 {
 		source.SelectTimeoutMS = 2000
 	}
@@ -621,6 +628,9 @@ func Validate(cfg Config) error {
 }
 
 func validateSource(sourceID string, source SourceConfig) error {
+	if !oneOf(source.Autofocus, AutofocusContinuous, AutofocusCamera) {
+		return fmt.Errorf("source %q has unsupported autofocus=%q", sourceID, source.Autofocus)
+	}
 	if !sourceIdentityPattern.MatchString(source.Identity) {
 		return fmt.Errorf("source %q identity is not canonical", sourceID)
 	}

@@ -12,6 +12,7 @@ import (
 )
 
 type ingestConfig struct {
+	autofocus             bool
 	sourceID              string
 	mediaEpoch            uint64
 	sourceTransport       string
@@ -63,10 +64,11 @@ type ingestConfig struct {
 }
 
 type gstElements struct {
-	liveEncoder    string
-	archiveEncoder string
-	decoder        string
-	toneMapper     string
+	autofocusProperty string
+	liveEncoder       string
+	archiveEncoder    string
+	decoder           string
+	toneMapper        string
 }
 
 var inspectElement = func(ctx context.Context, element string) bool {

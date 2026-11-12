@@ -42,6 +42,7 @@
 #include "worker_release.h"
 #include "worker_signal.h"
 #include "diagnostic_pipe.h"
+#include "v4l2_autofocus.h"
 #include "pipeline_latency.h"
 #include "hevc_sequence_limits.h"
 
@@ -148,6 +149,7 @@ typedef struct {
 	bool archive_enabled_explicit;
 	bool live_codec_explicit;
 	bool main_active;
+	bool autofocus;
 	video_broker_mjpeg_accelerator_t mjpeg_decode_accelerator;
 	bool mjpeg_decode_accelerator_explicit;
 	video_broker_mjpeg_accelerator_t mjpeg_decode_initial_backend;
@@ -1019,6 +1021,11 @@ static int parse_args(int argc, char **argv, bridge_config_t *cfg) {
 				return -1;
 			}
 			cfg->mjpeg_decode_initial_backend_explicit = true;
+		} else if (strcmp(argv[i], "--autofocus") == 0) {
+			if (++i >= argc || !video_broker_parse_required_bool(argv[i], &cfg->autofocus)) {
+				fprintf(stderr, "[rdkx5_v4l2_mux_bridge] invalid --autofocus; expected true|false\n");
+				return -1;
+			}
 		} else if (strcmp(argv[i], "--allow-sw-fallback") == 0) {
 			if (++i >= argc || !video_broker_parse_required_bool(
 					argv[i], &cfg->allow_software_fallback)) {
@@ -1982,7 +1989,6 @@ static int prepare_v4l2_capture(const bridge_config_t *cfg, v4l2_capture_t *cap)
 		fprintf(stderr, "[rdkx5_v4l2_mux_bridge] device does not support streaming I/O\n");
 		return -1;
 	}
-
 	memset(&format, 0, sizeof(format));
 	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	format.fmt.pix.width = (uint32_t)cfg->capture_width;
@@ -2057,6 +2063,10 @@ static int prepare_v4l2_capture(const bridge_config_t *cfg, v4l2_capture_t *cap)
 			fprintf(stderr, "[rdkx5_v4l2_mux_bridge] mmap failed index=%u err=%s\n", i, strerror(errno));
 			return -1;
 		}
+	}
+	if (cfg->autofocus) {
+		const char *focus_state = vb_enable_continuous_focus(cap->fd, xioctl);
+		fprintf(stderr, "[camera-autofocus] backend=v4l2 state=%s\n", focus_state);
 	}
 	return 0;
 }

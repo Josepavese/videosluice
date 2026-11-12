@@ -66,6 +66,7 @@ type engineConfig struct {
 	VideoQualityMonitorStatePath           string
 	VideoCameraAdmissionStatePath          string
 	VideoCaptureControlProfile             string
+	VideoAutofocus                         bool
 	VideoCaptureControls                   map[string]int
 	CameraHostIndex                        int
 	Enabled                                bool
@@ -212,6 +213,7 @@ func normalizeConfig(graph productconfig.SourceGraph) engineConfig {
 		VideoQualityMonitorStatePath:           processing.Quality.StatePath,
 		VideoCameraAdmissionStatePath:          processing.Quality.AdmissionPath,
 		VideoCaptureControlProfile:             source.ControlProfile,
+		VideoAutofocus:                         source.Autofocus == productconfig.AutofocusContinuous,
 		VideoCaptureControls:                   cloneIntMapConfig(source.Controls),
 		CameraHostIndex:                        source.HostIndex,
 		Enabled:                                true,

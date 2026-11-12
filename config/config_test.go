@@ -53,6 +53,9 @@ func TestNormalizeAppliesStableDefaultsPerSourceAndStream(t *testing.T) {
 		t.Fatalf("unexpected rate-control defaults: %+v", cfg.Streams)
 	}
 	source := cfg.Sources["front"]
+	if source.Autofocus != "continuous" {
+		t.Fatalf("continuous autofocus must default on: %q", source.Autofocus)
+	}
 	if source.Processing.ToneMapping.Mode != "auto" || source.Processing.ToneMapping.Accelerator != "auto" || !source.NoiseGuardEnabled() {
 		t.Fatalf("unexpected tone mapping defaults: %+v", source.Processing.ToneMapping)
 	}
@@ -90,6 +93,23 @@ func TestCloneDetachesEveryMutableConfigField(t *testing.T) {
 		originalSource.Processing.CameraControl.ControlSteps["gain"] != 2 ||
 		!*originalSource.Processing.ToneMapping.NoiseGuard {
 		t.Fatalf("config clone retained mutable aliases: %+v", original)
+	}
+}
+
+func TestAutofocusCanPreserveCameraCalibrationAndRejectsUnknownMode(t *testing.T) {
+	for _, mode := range []string{"camera", "unsupported-mode"} {
+		input := validConfig()
+		source := input.Sources["front"]
+		source.Autofocus = mode
+		input.Sources["front"] = source
+		cfg, err := Normalize(input)
+		if mode == "camera" {
+			if err != nil || cfg.Sources["front"].Autofocus != mode {
+				t.Fatalf("camera calibration overridden: %v", err)
+			}
+		} else if err == nil {
+			t.Fatal("unknown autofocus mode accepted")
+		}
 	}
 }
 
